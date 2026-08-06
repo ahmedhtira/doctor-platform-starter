@@ -1,0 +1,33 @@
+{
+  "common": {
+    "appName": "منصة الطبيب",
+    "switchToFrench": "Français",
+    "switchToArabic": "العربية"
+  },
+  "nav": {
+    "home": "الرئيسية",
+    "login": "تسجيل الدخول"
+  },
+  "home": {
+    "title": "البحث عن طبيب",
+    "description": "ستعرض هذه الصفحة العامة قريبًا الأطباء وحجز المواعيد."
+  },
+  "login": {
+    "title": "تسجيل الدخول",
+    "description": "الوصول مخصص للأطباء والسكرتارية.",
+    "emailLabel": "البريد الإلكتروني",
+    "passwordLabel": "كلمة المرور",
+    "submit": "تسجيل الدخول"
+  },
+  "dashboard": {
+    "title": "اليوم",
+    "description": "سيتم بناء لوحة تحكم الطبيب في خطوة لاحقة.",
+    "nav": {
+      "today": "اليوم",
+      "calendar": "التقويم",
+      "availability": "أوقات التوفر",
+      "profile": "الملف العام",
+      "staff": "السكرتارية"
+    }
+  }
+}

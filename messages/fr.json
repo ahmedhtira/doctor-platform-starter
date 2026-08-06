@@ -1,0 +1,33 @@
+{
+  "common": {
+    "appName": "Plateforme Médecin",
+    "switchToFrench": "Français",
+    "switchToArabic": "العربية"
+  },
+  "nav": {
+    "home": "Accueil",
+    "login": "Connexion"
+  },
+  "home": {
+    "title": "Recherche de médecins",
+    "description": "Cette page publique affichera bientôt les médecins et la prise de rendez-vous."
+  },
+  "login": {
+    "title": "Connexion",
+    "description": "Accès réservé aux médecins et secrétaires.",
+    "emailLabel": "Adresse e-mail",
+    "passwordLabel": "Mot de passe",
+    "submit": "Se connecter"
+  },
+  "dashboard": {
+    "title": "Aujourd'hui",
+    "description": "Le tableau de bord du médecin sera bâti dans une prochaine étape.",
+    "nav": {
+      "today": "Aujourd'hui",
+      "calendar": "Calendrier",
+      "availability": "Disponibilités",
+      "profile": "Profil public",
+      "staff": "Secrétaires"
+    }
+  }
+}
