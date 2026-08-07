@@ -16,6 +16,9 @@ const eslintConfig = defineConfig([
     "next-env.d.ts",
     "playwright-report/**",
     "test-results/**",
+    // Supabase CLI-generated runtime artifacts (gitignored, not project source).
+    "supabase/.temp/**",
+    "supabase/.branches/**",
   ]),
 ]);
 

@@ -2,16 +2,20 @@
 
 Doctor presentation and appointment-booking platform — public patient booking site (French/Arabic, RTL-aware) plus a private doctor/secretary dashboard.
 
-**Current status: M0 — project scaffolding only.** No database, no authentication, no booking logic, and no email sending exist yet. See [`.claude/plans` — the project plan file] for the full milestone roadmap; only the scaffolding milestone described below has been built so far.
+**Current status: M1 — database schema, RLS, and booking functions against
+local Supabase.** No UI wiring, no real email sending, no hosted project yet.
+See [`PROJECT_SPEC.md`](PROJECT_SPEC.md) for the full schema, security
+model, and milestone scope — it's the authoritative reference, kept current
+as the source of truth.
 
 ## Stack
 
-Next.js (App Router) · TypeScript (strict) · Tailwind CSS v4 · shadcn/ui · next-intl (fr/ar, RTL) · Supabase (client scaffolding only for now) · Vitest · Playwright · ESLint · Prettier
+Next.js (App Router) · TypeScript (strict) · Tailwind CSS v4 · shadcn/ui · next-intl (fr/ar, RTL) · Supabase (local Postgres + Auth, schema/RLS/functions in `supabase/migrations`) · Vitest · Playwright · ESLint · Prettier
 
 ## Prerequisites
 
 - Node.js 20+ and npm
-- A Supabase project (only needed once database work begins — not required to run M0)
+- Docker Desktop (for the local Supabase stack — no hosted project is used in M1)
 
 ## Setup
 
@@ -21,6 +25,21 @@ cp .env.example .env.local
 ```
 
 Fill in `.env.local` with your own Supabase project URL/keys once a Supabase project exists (see [`.env.example`](.env.example) for the required variables). No real credentials are committed anywhere in this repo — `.env.local` is gitignored.
+
+## Local database (M1)
+
+```bash
+npm run db:start   # supabase start — local Postgres/Auth/API via Docker
+npm run db:reset    # apply supabase/migrations to a fresh local database
+npm run test:db      # RLS, function-permission, composite-FK, overlap tests
+npm run db:stop     # supabase stop
+```
+
+`test:db` reads `TEST_SUPABASE_URL`/`TEST_SUPABASE_ANON_KEY`/
+`TEST_SUPABASE_SERVICE_ROLE_KEY` from `.env.test.local` (gitignored) —
+populate it from `npx supabase status` after `db:start`. This is entirely
+local; nothing here ever touches a hosted Supabase project. See
+[`PROJECT_SPEC.md`](PROJECT_SPEC.md) for the schema and security model.
 
 ## Available scripts
 
@@ -66,4 +85,10 @@ tests/
 
 ## Notes on scope
 
-This milestone intentionally does **not** include: database migrations, Row Level Security policies, booking logic, authentication logic, transactional email, appointment-management tokens, or PWA functionality. Those are covered by later milestones in the project plan.
+M1 is the database layer only: schema, RLS, and the privileged booking/
+cancellation/token functions, tested directly against local Supabase. It
+intentionally does **not** include: any UI wiring to this schema,
+authentication/login logic in the app, real transactional email sending
+(rows are enqueued to `email_outbox`, not sent), or PWA functionality.
+Those are covered by later milestones — see
+[`PROJECT_SPEC.md`](PROJECT_SPEC.md).
