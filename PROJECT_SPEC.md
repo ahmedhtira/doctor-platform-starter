@@ -18,13 +18,17 @@ change, update this file in the same change — don't let it go stale again.
   real data through the public RLS policies, plus the platform's visual
   design system (tokens, typography, base components) established on that
   page. fr/ar with RTL. No booking, no availability, no dashboard.
-- **M2.5** (this milestone): the public patient-facing homepage — real
-  doctor search with specialty/city filtering and result cards, reading
-  from local Supabase. Doctor/secretary login demoted out of the primary
+- **M2.5** (done): the public patient-facing homepage — real doctor
+  search with specialty/city filtering and result cards, reading from
+  local Supabase. Doctor/secretary login demoted out of the primary
   patient nav (moved to a subtle footer link) to keep the staff workspace
   a separate, desktop-first flow, not mixed into patient browsing. Still
   no booking, no availability.
-- **M3+**: not started. Don't infer scope for it from this file.
+- **M3** (this milestone): the availability engine — a TypeScript
+  slot-generation path proven consistent with `compute_available_slots`
+  (SQL), not yet wired into any booking UI. No booking flow, no
+  availability UI. See "Availability engine (M3)" below.
+- **M4+**: not started. Don't infer scope for it from this file.
 
 ## Product model
 
@@ -148,6 +152,49 @@ with a real submit button — no client JS, no `"use client"` component,
 works with JS disabled. If the doctor directory grows enough for this to
 matter, move filtering into the query (e.g. `clinics!inner` embedded
 filters) as a later-milestone optimization — not needed yet.
+
+## Availability engine (M3)
+
+Two implementations of the same algorithm exist on purpose, not by
+accident:
+
+- **SQL** (`public.compute_available_slots`, M1) is authoritative. It's
+  what `book_appointment`/`reschedule_appointment` ultimately defer to
+  (via `private.is_within_working_window`), backed by the GiST exclusion
+  constraint as the final safety net — a bug in the TS side can produce a
+  wrong *read*, never a wrong *write*.
+- **TypeScript** (`src/lib/availability/`) is what actual application code
+  should call to answer "what's available" — no per-request round trip
+  through a SQL function, fully unit-testable, usable anywhere Node runs.
+
+The two are proven consistent, not just similar, by
+`tests/availability/sql-consistency.test.ts`: for a range of scenarios it
+seeds real rows, calls the SQL RPC and the TS path with identical
+parameters, and asserts the resulting slots match exactly. If you change
+one implementation, change the other and re-run that suite — nothing else
+enforces the two staying in sync.
+
+TypeScript module layout:
+
+- `compute-available-slots.ts` — the pure algorithm (no I/O). Mirrors the
+  SQL function branch-for-branch: schedule exception → else recurring
+  working hours → subtract breaks → subtract blocked periods → subtract
+  existing `confirmed` appointments → apply minimum booking notice. Uses
+  Luxon for IANA-timezone-aware wall-clock↔instant conversion (hand-rolled
+  offset math was judged too easy to get subtly wrong).
+- `fetch-availability-data.ts` — resolves doctor/clinic/appointment-type
+  IDs into the plain data the pure function needs, and calls it. Takes a
+  `SupabaseClient<Database>` as a parameter (dependency injection)
+  instead of constructing its own — this is what makes it callable from
+  Vitest with a locally-built client, without pulling in
+  `service-role.ts`'s `import "server-only"` guard, which throws outside
+  Next's own bundler.
+- `get-available-slots.ts` — the real entry point future application code
+  (a booking UI, not built yet) should call. Thin: constructs a
+  service-role client and delegates to `fetch-availability-data.ts`. Has
+  the `server-only` guard, appropriately, since `working_hours`/`breaks`/
+  `blocked_periods`/`schedule_exceptions` have no anon/authenticated grant
+  at all (same requirement the SQL function has).
 
 ## Local-only guardrail
 
