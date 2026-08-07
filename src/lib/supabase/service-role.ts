@@ -1,6 +1,7 @@
 import "server-only";
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import { getSupabaseServiceRoleKey, getSupabaseUrl } from "./env";
+import type { Database } from "./database.types";
 
 /**
  * Privileged Supabase client using the service role key. Bypasses Row Level
@@ -10,7 +11,7 @@ import { getSupabaseServiceRoleKey, getSupabaseUrl } from "./env";
  * client code a build-time error, not a runtime leak.
  */
 export function createServiceRoleClient() {
-  return createSupabaseClient(getSupabaseUrl(), getSupabaseServiceRoleKey(), {
+  return createSupabaseClient<Database>(getSupabaseUrl(), getSupabaseServiceRoleKey(), {
     auth: {
       autoRefreshToken: false,
       persistSession: false,

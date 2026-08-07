@@ -11,10 +11,20 @@ change, update this file in the same change — don't let it go stale again.
 
 - **M0** (done): Next.js scaffold, i18n (fr/ar, RTL), Supabase client
   factories, no database.
-- **M1** (this milestone): database schema, RLS, and the privileged
+- **M1** (done): database schema, RLS, and the privileged
   booking/cancellation/token functions, against **local Supabase only**.
   No UI wiring, no real email sending, no hosted project.
-- **M2+**: not started. Don't infer scope for it from this file.
+- **M2** (done): the public doctor profile page (`/doctors/[slug]`) reading
+  real data through the public RLS policies, plus the platform's visual
+  design system (tokens, typography, base components) established on that
+  page. fr/ar with RTL. No booking, no availability, no dashboard.
+- **M2.5** (this milestone): the public patient-facing homepage — real
+  doctor search with specialty/city filtering and result cards, reading
+  from local Supabase. Doctor/secretary login demoted out of the primary
+  patient nav (moved to a subtle footer link) to keep the staff workspace
+  a separate, desktop-first flow, not mixed into patient browsing. Still
+  no booking, no availability.
+- **M3+**: not started. Don't infer scope for it from this file.
 
 ## Product model
 
@@ -102,7 +112,7 @@ without one.
 | `supported_locales` | fr/ar lookup (matches `next-intl` routing) |
 | `specialties` | bilingual specialty lookup |
 | `doctors` | `id` (internal PK) separate from `user_id` (→ `auth.users`); `timezone`, `is_published`, `min_booking_notice_minutes` |
-| `clinics` | `doctor_id` FK, own `timezone`; `UNIQUE(doctor_id, id)` for composite FKs |
+| `clinics` | `doctor_id` FK, own `timezone`, nullable `city` (added in M2.5 for search filtering — nullable so it's additive to already-tested M1 fixtures/functions, not a breaking change); `UNIQUE(doctor_id, id)` for composite FKs |
 | `doctor_secretaries` | M2M junction, `(doctor_id, secretary_user_id)` PK |
 | `appointment_types` | `doctor_id` FK, `duration_minutes`; `UNIQUE(doctor_id, id)` |
 | `working_hours` | recurring weekly rule per `(doctor_id, clinic_id, day_of_week)` |
@@ -125,6 +135,19 @@ without one.
 - `public.create_management_token`, `public.redeem_management_token` — token issuance/redemption, hash-only. `redeem_management_token` uses one generic error (`42501`, "invalid or expired token") for an unknown, expired, already-used, or reschedule-invalidated token — it never reveals which case applies.
 
 All five `public` functions above: `service_role` execute only.
+
+## Public doctor search (M2.5)
+
+The homepage reads all published doctors (with their specialty and clinics
+embedded) in one RLS-bound anon query, then derives filter options and
+applies the `specialty`/`city` filters **in memory**, not as separate
+PostgREST queries — deliberately, given the current scale (a handful of
+seeded doctors). Filters are plain URL search params
+(`?specialty=slug&city=Tunis`) submitted via a native `<form method="get">`
+with a real submit button — no client JS, no `"use client"` component,
+works with JS disabled. If the doctor directory grows enough for this to
+matter, move filtering into the query (e.g. `clinics!inner` embedded
+filters) as a later-milestone optimization — not needed yet.
 
 ## Local-only guardrail
 

@@ -6,11 +6,18 @@
   },
   "nav": {
     "home": "الرئيسية",
-    "login": "تسجيل الدخول"
+    "staffPortal": "مساحة الطبيب"
   },
   "home": {
     "title": "البحث عن طبيب",
-    "description": "ستعرض هذه الصفحة العامة قريبًا الأطباء وحجز المواعيد."
+    "description": "صفّ حسب الاختصاص والمدينة للعثور على الطبيب المناسب.",
+    "specialtyLabel": "الاختصاص",
+    "specialtyAll": "جميع الاختصاصات",
+    "cityLabel": "المدينة",
+    "cityAll": "جميع المدن",
+    "searchAction": "بحث",
+    "resultsEmpty": "لا يوجد طبيب يطابق بحثك.",
+    "viewProfile": "عرض الملف الشخصي"
   },
   "login": {
     "title": "تسجيل الدخول",
@@ -29,5 +36,21 @@
       "profile": "الملف العام",
       "staff": "السكرتارية"
     }
+  },
+  "doctorProfile": {
+    "specialtyLabel": "الاختصاص",
+    "biographyTitle": "السيرة الذاتية",
+    "clinicTitle": "العيادة",
+    "phoneLabel": "الهاتف",
+    "qualificationsTitle": "المؤهلات",
+    "publicationsTitle": "المنشورات",
+    "booksTitle": "الكتب",
+    "mediaAppearancesTitle": "الظهور الإعلامي",
+    "readMore": "قراءة"
+  },
+  "notFound": {
+    "title": "الصفحة غير موجودة",
+    "description": "الصفحة التي تبحث عنها غير موجودة أو لم تعد متوفرة.",
+    "backHome": "العودة إلى الصفحة الرئيسية"
   }
 }
