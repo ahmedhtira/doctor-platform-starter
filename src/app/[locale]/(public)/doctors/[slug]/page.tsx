@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/server";
 import { ProfileHero } from "@/components/doctor-profile/profile-hero";
 import { ClinicInfoCard } from "@/components/doctor-profile/clinic-info-card";
 import { InfoListSection, type CredentialItem } from "@/components/doctor-profile/info-list-section";
+import { BookingWidget } from "@/components/booking/booking-widget";
 
 export const dynamic = "force-dynamic";
 
@@ -25,6 +26,7 @@ const getDoctor = cache(async (slug: string) => {
       id, full_name, bio, phone, slug,
       specialties ( name_fr, name_ar ),
       clinics ( id, name, address, timezone ),
+      appointment_types ( id, name, duration_minutes ),
       doctor_qualifications ( id, title, institution, year_obtained ),
       doctor_publications ( id, title, publication_name, url, published_year ),
       doctor_books ( id, title, publisher, published_year, url ),
@@ -101,6 +103,22 @@ export default async function DoctorProfilePage({ params }: { params: Promise<Pa
 
       <div className="mx-auto grid max-w-5xl gap-10 px-4 py-12 sm:px-6 lg:grid-cols-[1fr_320px] lg:gap-14 lg:py-16">
         <div className="order-2 space-y-10 lg:order-1">
+          {doctor.clinics.length > 0 && doctor.appointment_types.length > 0 ? (
+            <section>
+              <BookingWidget
+                doctorId={doctor.id}
+                doctorName={doctor.full_name}
+                clinics={doctor.clinics}
+                appointmentTypes={doctor.appointment_types.map((type) => ({
+                  id: type.id,
+                  name: type.name,
+                  durationMinutes: type.duration_minutes,
+                }))}
+                locale={locale}
+              />
+            </section>
+          ) : null}
+
           {doctor.bio ? (
             <section>
               <h2 className="font-heading text-xl font-medium">{t("biographyTitle")}</h2>

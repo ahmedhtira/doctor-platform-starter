@@ -52,5 +52,30 @@
     "title": "Page introuvable",
     "description": "La page que vous cherchez n'existe pas ou n'est plus disponible.",
     "backHome": "Retour à l'accueil"
+  },
+  "booking": {
+    "title": "Prendre rendez-vous",
+    "clinicLabel": "Cabinet",
+    "appointmentTypeLabel": "Type de consultation",
+    "dateLabel": "Date",
+    "slotsLoading": "Chargement des créneaux…",
+    "slotsEmpty": "Aucun créneau disponible à cette date.",
+    "fullNameLabel": "Nom complet",
+    "phoneLabel": "Téléphone",
+    "emailLabel": "E-mail",
+    "submitAction": "Confirmer le rendez-vous",
+    "submitting": "Confirmation en cours…",
+    "errorSlotUnavailable": "Ce créneau vient d'être réservé par quelqu'un d'autre. Veuillez en choisir un autre.",
+    "errorScheduleChanged": "Ce créneau n'est plus disponible. Les disponibilités ont été actualisées.",
+    "errorValidation": "Veuillez vérifier les champs du formulaire.",
+    "errorUnknown": "Une erreur est survenue. Veuillez réessayer.",
+    "confirmationTitle": "Rendez-vous confirmé",
+    "confirmationSummaryIntro": "Votre rendez-vous a bien été enregistré.",
+    "confirmationDoctorLabel": "Médecin",
+    "confirmationDateLabel": "Date et heure",
+    "confirmationClinicLabel": "Lieu",
+    "confirmationPatientLabel": "Patient",
+    "managementLinkTitle": "Gérer votre rendez-vous",
+    "managementLinkDescription": "Conservez ce lien pour consulter, annuler ou modifier votre rendez-vous plus tard."
   }
 }

@@ -52,5 +52,30 @@
     "title": "الصفحة غير موجودة",
     "description": "الصفحة التي تبحث عنها غير موجودة أو لم تعد متوفرة.",
     "backHome": "العودة إلى الصفحة الرئيسية"
+  },
+  "booking": {
+    "title": "أخذ موعد",
+    "clinicLabel": "العيادة",
+    "appointmentTypeLabel": "نوع الاستشارة",
+    "dateLabel": "التاريخ",
+    "slotsLoading": "جارٍ تحميل المواعيد المتاحة…",
+    "slotsEmpty": "لا توجد مواعيد متاحة في هذا التاريخ.",
+    "fullNameLabel": "الاسم الكامل",
+    "phoneLabel": "الهاتف",
+    "emailLabel": "البريد الإلكتروني",
+    "submitAction": "تأكيد الموعد",
+    "submitting": "جارٍ التأكيد…",
+    "errorSlotUnavailable": "تم للتو حجز هذا الموعد من قبل شخص آخر. يرجى اختيار موعد آخر.",
+    "errorScheduleChanged": "هذا الموعد لم يعد متاحًا. تم تحديث المواعيد المتاحة.",
+    "errorValidation": "يرجى التحقق من حقول النموذج.",
+    "errorUnknown": "حدث خطأ. يرجى المحاولة مرة أخرى.",
+    "confirmationTitle": "تم تأكيد الموعد",
+    "confirmationSummaryIntro": "تم تسجيل موعدك بنجاح.",
+    "confirmationDoctorLabel": "الطبيب",
+    "confirmationDateLabel": "التاريخ والوقت",
+    "confirmationClinicLabel": "المكان",
+    "confirmationPatientLabel": "المريض",
+    "managementLinkTitle": "إدارة موعدك",
+    "managementLinkDescription": "احتفظ بهذا الرابط لعرض موعدك أو إلغائه أو تعديله لاحقًا."
   }
 }

@@ -118,14 +118,48 @@ async function main() {
     throw new Error(`doctor: ${doctorError?.message}`);
   }
 
-  const { error: clinicError } = await admin.from("clinics").insert({
-    doctor_id: doctor.id,
-    name: "Clinique El Manar",
-    address: "12 Avenue Habib Bourguiba, 1002 Tunis, Tunisie",
-    city: "Tunis",
-    timezone: "Africa/Tunis",
-  });
-  if (clinicError) throw new Error(`clinic: ${clinicError.message}`);
+  const { data: clinic, error: clinicError } = await admin
+    .from("clinics")
+    .insert({
+      doctor_id: doctor.id,
+      name: "Clinique El Manar",
+      address: "12 Avenue Habib Bourguiba, 1002 Tunis, Tunisie",
+      city: "Tunis",
+      timezone: "Africa/Tunis",
+    })
+    .select()
+    .single();
+  if (clinicError || !clinic) throw new Error(`clinic: ${clinicError?.message}`);
+
+  const { error: appointmentTypeError } = await admin
+    .from("appointment_types")
+    .insert({ doctor_id: doctor.id, name: "Consultation", duration_minutes: 30 });
+  if (appointmentTypeError) throw new Error(`appointment type: ${appointmentTypeError.message}`);
+
+  // Monday-Friday 09:00-17:00 with a lunch break, so the M4 booking
+  // widget has real slots to show against this fictional doctor.
+  const weekdays = [1, 2, 3, 4, 5]; // Postgres dow: Monday=1 ... Friday=5
+  const { error: workingHoursError } = await admin.from("working_hours").insert(
+    weekdays.map((dayOfWeek) => ({
+      doctor_id: doctor.id,
+      clinic_id: clinic.id,
+      day_of_week: dayOfWeek,
+      start_time: "09:00",
+      end_time: "17:00",
+    })),
+  );
+  if (workingHoursError) throw new Error(`working hours: ${workingHoursError.message}`);
+
+  const { error: breaksError } = await admin.from("breaks").insert(
+    weekdays.map((dayOfWeek) => ({
+      doctor_id: doctor.id,
+      clinic_id: clinic.id,
+      day_of_week: dayOfWeek,
+      start_time: "12:00",
+      end_time: "13:00",
+    })),
+  );
+  if (breaksError) throw new Error(`breaks: ${breaksError.message}`);
 
   const { error: qualificationsError } = await admin.from("doctor_qualifications").insert([
     {
