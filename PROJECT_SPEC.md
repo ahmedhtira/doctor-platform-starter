@@ -27,14 +27,18 @@ change, update this file in the same change — don't let it go stale again.
 - **M3** (done): the availability engine — a TypeScript slot-generation
   path proven consistent with `compute_available_slots` (SQL), not yet
   wired into any booking UI. See "Availability engine (M3)" below.
-- **M4** (this milestone): the booking flow — the availability engine
-  wired into the doctor profile page, a patient-facing slot picker and
-  booking form, Server Actions calling `book_appointment` in trusted
-  server code, a confirmation view. No patient cancellation/rescheduling
-  UI, no doctor dashboard. See "Booking flow (M4)" below.
-- **M5+**: not started. Don't infer scope for it from this file. In
-  particular: `/manage` (the token-exchange page the M4 confirmation
-  screen links to but doesn't build) and the actual email-sending
+- **M4** (done): the booking flow — the availability engine wired into
+  the doctor profile page, a patient-facing slot picker and booking form,
+  Server Actions calling `book_appointment` in trusted server code, a
+  confirmation view. No patient cancellation/rescheduling UI, no doctor
+  dashboard. See "Booking flow (M4)" below.
+- **M5** (this milestone): patient self-service management — the
+  `/manage` token-exchange page the M4 confirmation screen links to but
+  didn't build, plus patient-initiated cancellation and rescheduling. No
+  login. No doctor dashboard (that's M6). See "Patient self-service (M5)"
+  below.
+- **M6+**: not started. Don't infer scope for it from this file. In
+  particular: the doctor/secretary dashboard and the actual email-sending
   mechanism (including how a sent email gets a token-bearing link — see
   "Booking flow (M4)" for why that's deferred, not decided) both belong
   here.
@@ -134,7 +138,7 @@ without one.
 | `schedule_exceptions` | per-`(doctor_id, clinic_id, date)` override (closed / opened / custom hours) |
 | `appointments` | core record; composite FKs to `clinics`, `appointment_types`, `doctor_secretaries`; GiST exclusion on `(doctor_id, tstzrange(starts_at, ends_at))` where `status = 'confirmed'`; status ∈ `confirmed, cancelled, completed, no_show` |
 | `appointment_management_tokens` | hashed single-use patient self-service token |
-| `appointment_management_sessions` | short-lived session created when a token is redeemed |
+| `appointment_management_sessions` | short-lived session created when a token is redeemed; `session_secret_hash` (added M5) is the hash of an independent bearer secret — never the row's own `id`, see "Patient self-service (M5)" |
 | `doctor_qualifications`, `doctor_publications`, `doctor_books`, `doctor_media_appearances` | public-profile content, one-to-many on `doctor_id` |
 | `email_outbox` | queued transactional email; enqueued by privileged functions, sending itself is a later milestone |
 | `audit_log` | write-only-by-function record of privileged actions |
@@ -144,8 +148,8 @@ without one.
 - `private.is_doctor_owner`, `private.is_staff_for_doctor` — RLS helpers.
 - `public.compute_available_slots(doctor_id, clinic_id, appointment_type_id, local_date, now)` — derives bookable slots from exceptions → working hours → breaks → blocked periods → existing confirmed appointments → minimum booking notice. `now` is a parameter (not `now()`) so lead-time behavior is deterministic in tests.
 - `private.is_within_working_window(doctor_id, clinic_id, starts_at, ends_at, now)` — the same exceptions/working-hours/breaks/blocked-periods resolution as `compute_available_slots`, **plus** the same minimum-booking-notice check, as a single boolean check for one candidate range. `now` was added in M4 after a real gap was found: this function originally checked only the schedule (working hours/breaks/blocked/exceptions), never past-ness or notice — only the *read* path (`compute_available_slots`) enforced notice, so a write could accept a past or too-soon `starts_at`. `book_appointment`/`reschedule_appointment` pass `now()` at their call sites; the parameter exists (rather than reading `now()` internally) so the function stays consistent with the rest of the schedule-resolution logic's testable-parameter style. Internal-only (revoked from every role, including `service_role`) — only ever called from within those two `SECURITY DEFINER` functions, which already run as the definer.
-- `public.book_appointment`, `public.cancel_appointment`, `public.reschedule_appointment` — the only way to mutate `appointments`. Both `cancel_appointment` and `reschedule_appointment` require the appointment's current status to be `confirmed` (errcode `55000` otherwise) — repeat cancellation/reschedule of an already-cancelled/completed/no_show appointment is rejected, not silently re-applied. `reschedule_appointment` also invalidates (`used_at = now()`) any outstanding management tokens for that appointment on a successful reschedule, and can atomically issue a replacement via an optional `p_new_management_token_hash`.
-- `public.create_management_token`, `public.redeem_management_token` — token issuance/redemption, hash-only. `redeem_management_token` uses one generic error (`42501`, "invalid or expired token") for an unknown, expired, already-used, or reschedule-invalidated token — it never reveals which case applies.
+- `public.book_appointment`, `public.cancel_appointment`, `public.reschedule_appointment` — the only way to mutate `appointments`. Both `cancel_appointment` and `reschedule_appointment` require the appointment's current status to be `confirmed` (errcode `55000` otherwise) — repeat cancellation/reschedule of an already-cancelled/completed/no_show appointment is rejected, not silently re-applied. Each takes either `p_actor_user_id` (staff path) or `p_management_session_secret_hash` (patient path, renamed from `p_management_session_id` in M5 — see "Patient self-service (M5)"); `reschedule_appointment` also invalidates (`used_at = now()`) any outstanding management tokens for that appointment on a successful reschedule, and can atomically issue a replacement via an optional `p_new_management_token_hash`.
+- `public.create_management_token`, `public.redeem_management_token` — token issuance/redemption, hash-only. `redeem_management_token` uses one generic error (`42501`, "invalid or expired token") for an unknown, expired, already-used, or reschedule-invalidated token — it never reveals which case applies. Since M5, also takes `p_session_secret_hash` and stores it on the created session (see "Patient self-service (M5)").
 
 All five `public` functions above: `service_role` execute only.
 
@@ -231,9 +235,8 @@ built client-side (`window.location.origin` isn't available
 server-side). The fragment (`#...`) is deliberate — it's never sent to
 the server in the HTTP request, so no server/proxy/access log ever sees
 the raw token. M4 displays this link as text on the confirmation screen.
-**It does not implement `/manage` or any token-exchange page** — that's
-M5. Clicking the link 404s against the existing localized not-found page
-until then, which is expected.
+`/manage` itself — the token-exchange page, view/cancel/reschedule — is
+M5; see "Patient self-service (M5)" below.
 
 **Token expiry policy: `starts_at` + 24 hours.** This is the first place
 an actual duration is set — every SQL function since M1
@@ -274,6 +277,139 @@ same way (show a message, clear the selected slot, re-fetch availability
 for the current date): `23P01` (exclusion_violation — another booking won
 the race) and `55001` (schedule changed since the slots were fetched —
 notice window passed, doctor closed that time, etc.).
+
+## Patient self-service (M5)
+
+**The database layer for this milestone was already built in M1/M4** —
+`redeem_management_token`, `cancel_appointment`, `reschedule_appointment`
+already supported a session-based patient path (alongside the staff
+`p_actor_user_id` path) before any application code called it. M5 is
+mostly a Next.js application-layer milestone on top of that, plus one
+targeted schema/function fix (below) made before any code depended on the
+flawed original design.
+
+**Session credential: an independent secret, never the session row's own
+id.** The original M1 design had `redeem_management_token` return the
+`appointment_management_sessions` row, with the intent that its `id`
+(a `gen_random_uuid()`) would be passed straight back into
+`cancel_appointment`/`reschedule_appointment` as the patient's bearer
+credential. That conflates a database identifier with a credential — if
+that id were ever incidentally logged, surfaced in an error message, or
+exposed via some future unrelated endpoint, it would double as a live
+credential for the appointment it belongs to. Fixed in
+`supabase/migrations/20260101000019_management_session_secret_hash.sql`,
+before M5 shipped: `appointment_management_sessions` gained a
+`session_secret_hash` column (`unique`, `not null`, same pattern as
+`appointment_management_tokens.token_hash`); `redeem_management_token`
+takes a second parameter, `p_session_secret_hash`, generated and hashed
+in trusted Next.js server code (`src/lib/booking/crypto-secret.ts` —
+`generateOpaqueSecret`/`hashSecret`, the same primitive
+`generate-management-token.ts` uses for the raw token itself) and never
+computed in or returned by Postgres; `cancel_appointment`/
+`reschedule_appointment`'s session parameter was renamed from
+`p_management_session_id uuid` to `p_management_session_secret_hash text`,
+matched against that hash instead of the row id. `id` remains an internal
+identifier only. This was a clean rename, not a parallel/legacy path — no
+shipped consumer had ever called the session parameter on either function
+before M5.
+
+**Cookie**: `manage_session`, set by `redeemManagementTokenAction`
+(`src/app/[locale]/(public)/manage/actions.ts`) holding the **raw**
+session secret (`src/lib/booking/manage-session-cookie.ts`):
+`httpOnly`, `sameSite: "strict"`, `secure` in production, `maxAge` from
+the RPC's own `session.expires_at` (currently 30 minutes, set inside
+`redeem_management_token`). **`path: "/"`, not locale-scoped** —
+`localePrefix: "always"` (`src/i18n/routing.ts`) means `/fr/manage` and
+`/ar/manage` share no shorter path, and scoping to one locale would
+silently drop the session the moment a patient used the locale switcher
+(the token that created it is already burned by then — unrecoverable).
+This is the only application-level cookie in the codebase (the only other
+cookie usage, `src/lib/supabase/server.ts`, is Supabase's own
+auth-session cookie). Every request past redemption reads the raw secret
+from the cookie and hashes it once (`hashSecret`) before it touches
+Postgres or any DI-core function — see
+`src/lib/booking/get-managed-appointment.ts`, the single point every
+Server Action resolves a session through (also the freshness check: it
+does a direct service-role read of `appointment_management_sessions`,
+mirroring `fetch-availability-data.ts`'s existing precedent, rather than
+a new SQL function).
+
+**A raw token in the URL fragment always takes priority over an existing
+cookie.** `src/components/manage/manage-gate.tsx` always mounts and always
+checks `window.location.hash` for a token — regardless of whether the
+server already resolved a valid appointment from the cookie. Without
+this, a patient who already has an active session (e.g. they booked two
+appointments and are opening the second confirmation link while the first
+is still within its 30-minute window) would keep seeing the *first*
+appointment, since only client code can see a URL fragment at all. Two
+non-obvious details in that component, both covered by
+`tests/e2e/manage.spec.ts`:
+- The redemption attempt is guarded by a ref keyed on the *specific
+  token string* (not a plain "ran once" boolean) — React Strict Mode
+  double-invokes effects in development, and token redemption isn't
+  idempotent (the second attempt on the same token fails, since it's
+  already burned), so a plain boolean guard would work for that but then
+  permanently block every *later*, different token too — e.g. a patient
+  clicking a second appointment's link in an already-open tab, which
+  changes the URL fragment without remounting the component. Hence a
+  `hashchange` listener alongside the on-mount check, and a
+  token-keyed ref rather than a boolean one.
+- On a successful redemption, the UI doesn't flip to the appointment view
+  until the **refreshed** `appointment` prop actually arrives from
+  `router.refresh()` — not immediately, since `router.refresh()` doesn't
+  resolve synchronously and this component doesn't unmount/remount around
+  it the way separate components swapped by a parent would.
+
+**Reschedule rotates the management token — no permanent lockout.**
+`src/lib/booking/reschedule-managed-appointment.ts` generates a fresh raw
+token the same way `book-appointment.ts` does, with expiry = new
+`starts_at` + 24h (same policy as the original booking token), and passes
+its hash into `reschedule_appointment`'s existing
+`p_new_management_token_hash`/`p_new_management_token_expires_at`
+parameters (built in M1/M4, never wired up before this). The RPC
+unconditionally burns the *old* token on any reschedule regardless — the
+patient must always get a working replacement link, which
+`managed-appointment-view.tsx` displays on a dedicated post-reschedule
+screen (`managementLinkTitle`/`...Description`, same idea as the M4
+booking confirmation's link block). The browser's cookie-backed
+**session** is untouched by a reschedule — it's a separate table
+(`appointment_management_sessions`) `reschedule_appointment` never
+writes to, so the patient stays logged into the same session across a
+reschedule without needing the new link at all, right up until that
+session's own 30-minute window lapses.
+
+**Privacy headers**: `Cache-Control: no-store`, `Referrer-Policy:
+no-referrer`, `X-Robots-Tag: noindex, nofollow` (plus a matching
+`<meta name="robots">` via `generateMetadata`), declared in
+`next.config.ts`'s `headers()` for `/:locale/manage/:path*`. Verified
+against a production build (`next build && next start`) — Next's dev
+server serves its own blanket `Cache-Control: no-cache, must-revalidate`
+for *every* route in development regardless of this config (an
+intentional Next.js dev-mode behavior, not a bug here — see "In
+Development, Pages are always rendered on-demand and are never cached"
+in the Next.js docs), so don't use `next dev` to sanity-check these
+headers; `tests/e2e/manage.spec.ts` asserts them against the real
+(production-build) Playwright server. No analytics/tag-manager script may
+ever be added to this route or a shared layout it inherits from — the
+management experience carries privacy-sensitive appointment data
+reachable by anyone holding the link; verified via repo-wide grep that
+none exist anywhere in `src/` as of M5.
+
+**No new `appointment_id` index.** Every read/write path M5 introduces
+resolves through a primary-key or unique-constraint predicate first
+(`appointment_management_sessions.session_secret_hash`,
+`appointments.id`) — never a plain `appointment_id` scan. The one
+pre-existing query that does filter `appointment_management_tokens` by
+`appointment_id` alone (`reschedule_appointment`'s token-invalidation
+`update`) predates M5 and operates on a tiny per-appointment row count,
+same deferred-until-scale reasoning as M2.5's in-memory search filtering.
+
+**Deferred, not solved**: no re-entry once a session's 30-minute window
+lapses after its token was already burned — the only way back in is a
+fresh email, which is the not-yet-built email-delivery milestone's
+concern, consistent with how M4 already deferred that mechanism. No
+rate-limiting on token redemption, consistent with `book_appointment`
+also having none.
 
 ## Local-only guardrail
 

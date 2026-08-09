@@ -14,6 +14,10 @@ function sha256(raw: string): string {
   return createHash("sha256").update(raw).digest("hex");
 }
 
+function randomSecretHash(): string {
+  return sha256(randomBytes(32).toString("hex"));
+}
+
 describe("management token redemption and session-based cancellation", () => {
   const admin = createServiceRoleClient();
   const userIds: string[] = [];
@@ -57,12 +61,32 @@ describe("management token redemption and session-based cancellation", () => {
     return data;
   }
 
+  // Redeeming now requires the caller to supply the hash of an
+  // independently-generated session secret (see migration
+  // 20260101000019_management_session_secret_hash.sql) — the DB row's own
+  // `id` is never the credential. Tests that only care about the token
+  // side of redemption still pass a throwaway secret hash to satisfy the
+  // (required) parameter.
+  async function redeem(tokenHash: string) {
+    const secretHash = randomSecretHash();
+    const result = await admin.rpc("redeem_management_token", {
+      p_token_hash: tokenHash,
+      p_session_secret_hash: secretHash,
+    });
+    return { ...result, secretHash };
+  }
+
   it("redeeming a valid token creates a short-lived session for the right appointment", async () => {
     const doctor = await setupDoctorWithHours();
     const hash = sha256(randomBytes(32).toString("hex"));
-    const appt = await bookWithToken(doctor, `${LOCAL_DATE}T09:00:00Z`, hash, "2031-01-01T00:00:00Z");
+    const appt = await bookWithToken(
+      doctor,
+      `${LOCAL_DATE}T09:00:00Z`,
+      hash,
+      "2031-01-01T00:00:00Z",
+    );
 
-    const { data: session, error } = await admin.rpc("redeem_management_token", { p_token_hash: hash });
+    const { data: session, error } = await redeem(hash);
 
     expect(error).toBeNull();
     expect(session.appointment_id).toBe(appt.id);
@@ -89,9 +113,7 @@ describe("management token redemption and session-based cancellation", () => {
   });
 
   it("rejects redemption of an invalid (unknown) token hash", async () => {
-    const { error } = await admin.rpc("redeem_management_token", {
-      p_token_hash: sha256("never-issued"),
-    });
+    const { error } = await redeem(sha256("never-issued"));
     expect(error).not.toBeNull();
     expect(error?.code).toBe("42501");
     expect(error?.message).toBe("invalid or expired token");
@@ -102,7 +124,7 @@ describe("management token redemption and session-based cancellation", () => {
     const hash = sha256(randomBytes(32).toString("hex"));
     await bookWithToken(doctor, `${LOCAL_DATE}T10:00:00Z`, hash, "2020-01-01T00:00:00Z"); // already expired
 
-    const { error } = await admin.rpc("redeem_management_token", { p_token_hash: hash });
+    const { error } = await redeem(hash);
     expect(error).not.toBeNull();
     expect(error?.code).toBe("42501");
     expect(error?.message).toBe("invalid or expired token");
@@ -113,10 +135,10 @@ describe("management token redemption and session-based cancellation", () => {
     const hash = sha256(randomBytes(32).toString("hex"));
     await bookWithToken(doctor, `${LOCAL_DATE}T10:30:00Z`, hash, "2031-01-01T00:00:00Z");
 
-    const first = await admin.rpc("redeem_management_token", { p_token_hash: hash });
+    const first = await redeem(hash);
     expect(first.error).toBeNull();
 
-    const second = await admin.rpc("redeem_management_token", { p_token_hash: hash });
+    const second = await redeem(hash);
     expect(second.error).not.toBeNull();
     expect(second.error?.code).toBe("42501");
     expect(second.error?.message).toBe("invalid or expired token");
@@ -125,7 +147,12 @@ describe("management token redemption and session-based cancellation", () => {
   it("rejects redemption of a revoked token (invalidated by a reschedule), with the same generic error", async () => {
     const doctor = await setupDoctorWithHours();
     const hash = sha256(randomBytes(32).toString("hex"));
-    const appt = await bookWithToken(doctor, `${LOCAL_DATE}T11:00:00Z`, hash, "2031-01-01T00:00:00Z");
+    const appt = await bookWithToken(
+      doctor,
+      `${LOCAL_DATE}T11:00:00Z`,
+      hash,
+      "2031-01-01T00:00:00Z",
+    );
 
     const { error: rescheduleError } = await admin.rpc("reschedule_appointment", {
       p_appointment_id: appt.id,
@@ -134,7 +161,7 @@ describe("management token redemption and session-based cancellation", () => {
     });
     expect(rescheduleError).toBeNull();
 
-    const { error } = await admin.rpc("redeem_management_token", { p_token_hash: hash });
+    const { error } = await redeem(hash);
     expect(error).not.toBeNull();
     expect(error?.code).toBe("42501");
     expect(error?.message).toBe("invalid or expired token");
@@ -143,25 +170,33 @@ describe("management token redemption and session-based cancellation", () => {
   it("a session can only cancel its own appointment, not another one", async () => {
     const doctor = await setupDoctorWithHours();
     const hashA = sha256(randomBytes(32).toString("hex"));
-    const apptA = await bookWithToken(doctor, `${LOCAL_DATE}T14:00:00Z`, hashA, "2031-01-01T00:00:00Z");
+    const apptA = await bookWithToken(
+      doctor,
+      `${LOCAL_DATE}T14:00:00Z`,
+      hashA,
+      "2031-01-01T00:00:00Z",
+    );
     const hashB = sha256(randomBytes(32).toString("hex"));
-    const apptB = await bookWithToken(doctor, `${LOCAL_DATE}T15:00:00Z`, hashB, "2031-01-01T00:00:00Z");
+    const apptB = await bookWithToken(
+      doctor,
+      `${LOCAL_DATE}T15:00:00Z`,
+      hashB,
+      "2031-01-01T00:00:00Z",
+    );
 
-    const { data: session, error: redeemError } = await admin.rpc("redeem_management_token", {
-      p_token_hash: hashA,
-    });
+    const { error: redeemError, secretHash } = await redeem(hashA);
     expect(redeemError).toBeNull();
 
     const crossAttempt = await admin.rpc("cancel_appointment", {
       p_appointment_id: apptB.id,
-      p_management_session_id: session.id,
+      p_management_session_secret_hash: secretHash,
     });
     expect(crossAttempt.error).not.toBeNull();
     expect(crossAttempt.error?.code).toBe("42501");
 
     const ownAttempt = await admin.rpc("cancel_appointment", {
       p_appointment_id: apptA.id,
-      p_management_session_id: session.id,
+      p_management_session_secret_hash: secretHash,
     });
     expect(ownAttempt.error).toBeNull();
     expect(ownAttempt.data.status).toBe("cancelled");
@@ -172,9 +207,14 @@ describe("management token redemption and session-based cancellation", () => {
     const hash = sha256(randomBytes(32).toString("hex"));
     // 09:00-17:00 Tunis = 08:00-16:00 UTC; a 30-min appointment must start
     // no later than 15:30 UTC to end by close.
-    const appt = await bookWithToken(doctor, `${LOCAL_DATE}T12:00:00Z`, hash, "2031-01-01T00:00:00Z");
+    const appt = await bookWithToken(
+      doctor,
+      `${LOCAL_DATE}T12:00:00Z`,
+      hash,
+      "2031-01-01T00:00:00Z",
+    );
 
-    const { data: session } = await admin.rpc("redeem_management_token", { p_token_hash: hash });
+    const { data: session, secretHash } = await redeem(hash);
     await admin
       .from("appointment_management_sessions")
       .update({ expires_at: "2020-01-01T00:00:00Z" })
@@ -182,7 +222,7 @@ describe("management token redemption and session-based cancellation", () => {
 
     const { error } = await admin.rpc("cancel_appointment", {
       p_appointment_id: appt.id,
-      p_management_session_id: session.id,
+      p_management_session_secret_hash: secretHash,
     });
     expect(error).not.toBeNull();
     expect(error?.code).toBe("42501");
@@ -191,19 +231,24 @@ describe("management token redemption and session-based cancellation", () => {
   it("successful cancellation changes status and cannot be repeated", async () => {
     const doctor = await setupDoctorWithHours();
     const hash = sha256(randomBytes(32).toString("hex"));
-    const appt = await bookWithToken(doctor, `${LOCAL_DATE}T09:00:00Z`, hash, "2031-01-01T00:00:00Z");
-    const { data: session } = await admin.rpc("redeem_management_token", { p_token_hash: hash });
+    const appt = await bookWithToken(
+      doctor,
+      `${LOCAL_DATE}T09:00:00Z`,
+      hash,
+      "2031-01-01T00:00:00Z",
+    );
+    const { secretHash } = await redeem(hash);
 
     const first = await admin.rpc("cancel_appointment", {
       p_appointment_id: appt.id,
-      p_management_session_id: session.id,
+      p_management_session_secret_hash: secretHash,
     });
     expect(first.error).toBeNull();
     expect(first.data.status).toBe("cancelled");
 
     const second = await admin.rpc("cancel_appointment", {
       p_appointment_id: appt.id,
-      p_management_session_id: session.id,
+      p_management_session_secret_hash: secretHash,
     });
     expect(second.error).not.toBeNull();
     expect(second.error?.code).toBe("55000");

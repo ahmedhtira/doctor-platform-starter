@@ -1,3 +1,4 @@
+import { createHash, randomBytes } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
   cleanupUsers,
@@ -7,6 +8,10 @@ import {
   createServiceRoleClient,
   type DoctorFixture,
 } from "./fixtures";
+
+function sha256(raw: string): string {
+  return createHash("sha256").update(raw).digest("hex");
+}
 
 describe("function permissions", () => {
   const admin = createServiceRoleClient();
@@ -140,5 +145,19 @@ describe("function permissions", () => {
     });
     expect(error).not.toBeNull();
     expect(error?.code).toBe("42501");
+  });
+
+  it("denies anon/authenticated execute on redeem_management_token", async () => {
+    const redeemArgs = {
+      p_token_hash: sha256("never-issued"),
+      p_session_secret_hash: sha256(randomBytes(32).toString("hex")),
+    };
+
+    const anon = createAnonClient();
+    const anonAttempt = await anon.rpc("redeem_management_token", redeemArgs);
+    expect(anonAttempt.error?.code).toBe("42501");
+
+    const authAttempt = await doctorA.client.rpc("redeem_management_token", redeemArgs);
+    expect(authAttempt.error?.code).toBe("42501");
   });
 });

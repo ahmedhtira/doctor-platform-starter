@@ -159,10 +159,16 @@ describe("reschedule_appointment", () => {
     });
     expect(rescheduleError).toBeNull();
 
-    const oldRedeem = await admin.rpc("redeem_management_token", { p_token_hash: oldHash });
+    const oldRedeem = await admin.rpc("redeem_management_token", {
+      p_token_hash: oldHash,
+      p_session_secret_hash: sha256(randomBytes(32).toString("hex")),
+    });
     expect(oldRedeem.error).not.toBeNull();
 
-    const newRedeem = await admin.rpc("redeem_management_token", { p_token_hash: newHash });
+    const newRedeem = await admin.rpc("redeem_management_token", {
+      p_token_hash: newHash,
+      p_session_secret_hash: sha256(randomBytes(32).toString("hex")),
+    });
     expect(newRedeem.error).toBeNull();
     expect(newRedeem.data.appointment_id).toBe(appt.id);
   });
