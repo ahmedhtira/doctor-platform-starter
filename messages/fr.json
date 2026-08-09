@@ -24,17 +24,83 @@
     "description": "Accès réservé aux médecins et secrétaires.",
     "emailLabel": "Adresse e-mail",
     "passwordLabel": "Mot de passe",
-    "submit": "Se connecter"
+    "submit": "Se connecter",
+    "submitting": "Connexion en cours…",
+    "errorInvalidCredentials": "Adresse e-mail ou mot de passe incorrect."
   },
   "dashboard": {
-    "title": "Aujourd'hui",
-    "description": "Le tableau de bord du médecin sera bâti dans une prochaine étape.",
+    "logout": "Se déconnecter",
     "nav": {
       "today": "Aujourd'hui",
       "calendar": "Calendrier",
       "availability": "Disponibilités",
       "profile": "Profil public",
-      "staff": "Secrétaires"
+      "staff": "Secrétaires",
+      "switchDoctorLabel": "Médecin"
+    },
+    "today": {
+      "title": "Aujourd'hui"
+    },
+    "calendar": {
+      "title": "Calendrier",
+      "previousWeek": "Semaine précédente",
+      "nextWeek": "Semaine suivante"
+    },
+    "appointmentList": {
+      "empty": "Aucun rendez-vous.",
+      "status": {
+        "confirmed": "Confirmé",
+        "cancelled": "Annulé",
+        "completed": "Terminé",
+        "no_show": "Absence"
+      }
+    },
+    "appointmentActions": {
+      "rescheduleAction": "Modifier",
+      "cancelAction": "Annuler",
+      "cancelConfirmPrompt": "Voulez-vous vraiment annuler ce rendez-vous ?",
+      "cancelConfirmYes": "Oui, annuler",
+      "cancelConfirmNo": "Non, revenir",
+      "cancelling": "Annulation en cours…",
+      "rescheduleDateLabel": "Date",
+      "rescheduleSlotsLoading": "Chargement des créneaux…",
+      "rescheduleSlotsEmpty": "Aucun créneau disponible à cette date.",
+      "rescheduleConfirmAction": "Confirmer le nouveau créneau",
+      "rescheduling": "Modification en cours…",
+      "rescheduleBackAction": "Retour",
+      "rescheduleSuccessTitle": "Rendez-vous modifié",
+      "rescheduleSuccessMessage": "Le rendez-vous a été déplacé au nouveau créneau ci-dessous.",
+      "managementLinkTitle": "Nouveau lien de gestion pour le patient",
+      "managementLinkDescription": "L'ancien lien ne fonctionne plus. Transmettez ce nouveau lien au patient (téléphone, SMS…) pour qu'il puisse gérer son rendez-vous.",
+      "copyLinkAction": "Copier le lien",
+      "copyLinkCopied": "Lien copié",
+      "backToAppointment": "Retour au rendez-vous",
+      "errorAppointmentNotFound": "Ce rendez-vous est introuvable.",
+      "errorNotModifiable": "Ce rendez-vous ne peut plus être modifié. Veuillez actualiser la page.",
+      "errorSlotUnavailable": "Ce créneau vient d'être réservé. Veuillez en choisir un autre.",
+      "errorScheduleChanged": "Ce créneau n'est plus disponible. Les disponibilités ont été actualisées.",
+      "errorUnauthenticated": "Votre session a expiré. Veuillez vous reconnecter.",
+      "errorUnknown": "Une erreur est survenue. Veuillez réessayer."
+    },
+    "availability": {
+      "title": "Disponibilités",
+      "noClinics": "Aucun cabinet n'est encore configuré pour ce médecin.",
+      "workingHoursTitle": "Horaires de travail",
+      "breaksTitle": "Pauses",
+      "blockedPeriodsTitle": "Périodes bloquées",
+      "exceptionsTitle": "Exceptions de calendrier",
+      "clinicLabel": "Cabinet",
+      "allClinics": "Tous les cabinets",
+      "dayOfWeekLabel": "Jour",
+      "startTimeLabel": "Heure de début",
+      "endTimeLabel": "Heure de fin",
+      "startLabel": "Début",
+      "endLabel": "Fin",
+      "reasonLabel": "Motif",
+      "dateLabel": "Date",
+      "closedLabel": "Fermé",
+      "deleteAction": "Supprimer",
+      "addAction": "Ajouter"
     }
   },
   "doctorProfile": {

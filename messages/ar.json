@@ -24,17 +24,83 @@
     "description": "الوصول مخصص للأطباء والسكرتارية.",
     "emailLabel": "البريد الإلكتروني",
     "passwordLabel": "كلمة المرور",
-    "submit": "تسجيل الدخول"
+    "submit": "تسجيل الدخول",
+    "submitting": "جارٍ تسجيل الدخول…",
+    "errorInvalidCredentials": "البريد الإلكتروني أو كلمة المرور غير صحيحة."
   },
   "dashboard": {
-    "title": "اليوم",
-    "description": "سيتم بناء لوحة تحكم الطبيب في خطوة لاحقة.",
+    "logout": "تسجيل الخروج",
     "nav": {
       "today": "اليوم",
       "calendar": "التقويم",
       "availability": "أوقات التوفر",
       "profile": "الملف العام",
-      "staff": "السكرتارية"
+      "staff": "السكرتارية",
+      "switchDoctorLabel": "الطبيب"
+    },
+    "today": {
+      "title": "اليوم"
+    },
+    "calendar": {
+      "title": "التقويم",
+      "previousWeek": "الأسبوع السابق",
+      "nextWeek": "الأسبوع التالي"
+    },
+    "appointmentList": {
+      "empty": "لا توجد مواعيد.",
+      "status": {
+        "confirmed": "مؤكد",
+        "cancelled": "ملغى",
+        "completed": "منتهٍ",
+        "no_show": "غياب"
+      }
+    },
+    "appointmentActions": {
+      "rescheduleAction": "تعديل",
+      "cancelAction": "إلغاء",
+      "cancelConfirmPrompt": "هل تريد فعلاً إلغاء هذا الموعد؟",
+      "cancelConfirmYes": "نعم، إلغاء",
+      "cancelConfirmNo": "لا، رجوع",
+      "cancelling": "جارٍ الإلغاء…",
+      "rescheduleDateLabel": "التاريخ",
+      "rescheduleSlotsLoading": "جارٍ تحميل المواعيد المتاحة…",
+      "rescheduleSlotsEmpty": "لا توجد مواعيد متاحة في هذا التاريخ.",
+      "rescheduleConfirmAction": "تأكيد الموعد الجديد",
+      "rescheduling": "جارٍ التعديل…",
+      "rescheduleBackAction": "رجوع",
+      "rescheduleSuccessTitle": "تم تعديل الموعد",
+      "rescheduleSuccessMessage": "تم نقل الموعد إلى الموعد الجديد أدناه.",
+      "managementLinkTitle": "رابط إدارة جديد للمريض",
+      "managementLinkDescription": "لم يعد الرابط القديم يعمل. أرسل هذا الرابط الجديد إلى المريض (هاتف، رسالة نصية…) ليتمكن من إدارة موعده.",
+      "copyLinkAction": "نسخ الرابط",
+      "copyLinkCopied": "تم نسخ الرابط",
+      "backToAppointment": "العودة إلى الموعد",
+      "errorAppointmentNotFound": "تعذر العثور على هذا الموعد.",
+      "errorNotModifiable": "لم يعد بالإمكان تعديل هذا الموعد. يرجى تحديث الصفحة.",
+      "errorSlotUnavailable": "تم للتو حجز هذا الموعد. يرجى اختيار موعد آخر.",
+      "errorScheduleChanged": "هذا الموعد لم يعد متاحًا. تم تحديث المواعيد المتاحة.",
+      "errorUnauthenticated": "انتهت صلاحية جلستك. يرجى تسجيل الدخول مرة أخرى.",
+      "errorUnknown": "حدث خطأ. يرجى المحاولة مرة أخرى."
+    },
+    "availability": {
+      "title": "أوقات التوفر",
+      "noClinics": "لم يتم بعد إعداد أي عيادة لهذا الطبيب.",
+      "workingHoursTitle": "ساعات العمل",
+      "breaksTitle": "الاستراحات",
+      "blockedPeriodsTitle": "الفترات المحجوبة",
+      "exceptionsTitle": "استثناءات التقويم",
+      "clinicLabel": "العيادة",
+      "allClinics": "جميع العيادات",
+      "dayOfWeekLabel": "اليوم",
+      "startTimeLabel": "وقت البدء",
+      "endTimeLabel": "وقت الانتهاء",
+      "startLabel": "البداية",
+      "endLabel": "النهاية",
+      "reasonLabel": "السبب",
+      "dateLabel": "التاريخ",
+      "closedLabel": "مغلق",
+      "deleteAction": "حذف",
+      "addAction": "إضافة"
     }
   },
   "doctorProfile": {

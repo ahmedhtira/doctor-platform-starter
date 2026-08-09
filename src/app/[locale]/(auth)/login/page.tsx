@@ -1,13 +1,24 @@
-import { useTranslations } from "next-intl";
-import { Button } from "@/components/ui/button";
+import { getTranslations } from "next-intl/server";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { LoginForm } from "@/components/auth/login-form";
+import { getAuthenticatedUser, getStaffedDoctors } from "@/lib/dashboard/auth-context";
+import { redirect } from "@/i18n/navigation";
 
-// Placeholder only — Supabase Auth wiring, validation, and session handling
-// are out of scope for this milestone (M0 scaffolding).
-export default function LoginPage() {
-  const t = useTranslations("login");
+export default async function LoginPage({ params }: { params: Promise<{ locale: string }> }) {
+  const { locale } = await params;
+
+  // Optimistic redirect: an already-authenticated staff member visiting
+  // /login again should land straight on the dashboard, mirroring the
+  // Next.js auth guide's public-route redirect example.
+  const user = await getAuthenticatedUser();
+  if (user) {
+    const doctors = await getStaffedDoctors(user.id);
+    if (doctors.length > 0) {
+      redirect({ href: "/dashboard", locale });
+    }
+  }
+
+  const t = await getTranslations("login");
 
   return (
     <div className="flex min-h-svh items-center justify-center px-4">
@@ -17,19 +28,7 @@ export default function LoginPage() {
           <CardDescription>{t("description")}</CardDescription>
         </CardHeader>
         <CardContent>
-          <form className="flex flex-col gap-4">
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="email">{t("emailLabel")}</Label>
-              <Input id="email" type="email" autoComplete="email" disabled />
-            </div>
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="password">{t("passwordLabel")}</Label>
-              <Input id="password" type="password" autoComplete="current-password" disabled />
-            </div>
-            <Button type="submit" disabled className="mt-2">
-              {t("submit")}
-            </Button>
-          </form>
+          <LoginForm />
         </CardContent>
       </Card>
     </div>

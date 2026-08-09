@@ -1,11 +1,11 @@
 import { createClient, type SupabaseClient, type User } from "@supabase/supabase-js";
-import {
-  getTestSupabaseAnonKey,
-  getTestSupabaseServiceRoleKey,
-  getTestSupabaseUrl,
-} from "./env";
+import { getTestSupabaseAnonKey, getTestSupabaseServiceRoleKey, getTestSupabaseUrl } from "./env";
 
-const TEST_PASSWORD = "Test-password-123!";
+// Exported so tests/e2e/dashboard-fixtures.ts can log fixture users in
+// through the real /login form — the fixture creates the auth user with
+// this password (createTestUser below), so the e2e layer needs the same
+// value rather than a second, driftable copy.
+export const TEST_PASSWORD = "Test-password-123!";
 let counter = 0;
 
 function unique(prefix: string): string {

@@ -1,5 +1,6 @@
 "use client";
 
+import { useSearchParams } from "next/navigation";
 import { useLocale } from "next-intl";
 import { Link, usePathname } from "@/i18n/navigation";
 import { routing } from "@/i18n/routing";
@@ -10,13 +11,19 @@ const LABELS: Record<string, string> = { fr: "Français", ar: "العربية" }
 export function LocaleSwitcher() {
   const pathname = usePathname();
   const activeLocale = useLocale();
+  // usePathname() (like next/navigation's) excludes the query string —
+  // switching locale would otherwise silently drop it (dashboard's
+  // doctorId/week, or the public search page's specialty/city filters).
+  // Preserved generically here rather than special-cased per page.
+  const searchParams = useSearchParams();
+  const query = Object.fromEntries(searchParams.entries());
 
   return (
     <div className="bg-muted ring-foreground/8 inline-flex items-center gap-0.5 rounded-full p-0.5 text-sm ring-1">
       {routing.locales.map((locale) => (
         <Link
           key={locale}
-          href={pathname}
+          href={{ pathname, query }}
           locale={locale}
           aria-current={locale === activeLocale ? "true" : undefined}
           className={cn(

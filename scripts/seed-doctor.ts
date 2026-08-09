@@ -51,9 +51,18 @@ loadEnvFile(path.resolve(process.cwd(), ".env.local"));
 
 const DOCTOR_EMAIL = "amira.bensalah@example.test";
 const DOCTOR_SLUG = "amira-ben-salah";
+const SECRETARY_EMAIL = "nadia.sekri@example.test";
+const DEV_PASSWORD = "local-dev-only-not-a-real-password";
 
 async function main() {
   const admin = createServiceRoleClient();
+
+  // Listed once, up front, and reused for both the doctor's and the
+  // secretary's auth-user lookups below.
+  const { data: existingUsers, error: listUsersError } = await admin.auth.admin.listUsers();
+  if (listUsersError) {
+    throw new Error(`listing auth users: ${listUsersError.message}`);
+  }
 
   const { data: existingDoctor, error: existingDoctorError } = await admin
     .from("doctors")
@@ -63,11 +72,57 @@ async function main() {
   if (existingDoctorError) {
     throw new Error(`checking for existing doctor: ${existingDoctorError.message}`);
   }
+
+  let doctorId: string;
   if (existingDoctor) {
-    console.log(`Doctor "${DOCTOR_SLUG}" already exists (id=${existingDoctor.id}) — nothing to do.`);
-    return;
+    console.log(
+      `Doctor "${DOCTOR_SLUG}" already exists (id=${existingDoctor.id}) — skipping doctor creation.`,
+    );
+    doctorId = existingDoctor.id;
+  } else {
+    doctorId = await seedDoctor(admin, existingUsers.users);
   }
 
+  // Secretary login fixture — independent of whether the doctor above was
+  // just created or already existed, so re-running this script after the
+  // doctor exists still ensures the secretary path is reachable in the
+  // browser (not only in tests/db/fixtures.ts).
+  let secretaryUserId = existingUsers.users.find((u) => u.email === SECRETARY_EMAIL)?.id;
+  if (!secretaryUserId) {
+    const { data: created, error: userError } = await admin.auth.admin.createUser({
+      email: SECRETARY_EMAIL,
+      password: DEV_PASSWORD,
+      email_confirm: true,
+    });
+    if (userError || !created.user) {
+      throw new Error(`creating secretary auth user: ${userError?.message}`);
+    }
+    secretaryUserId = created.user.id;
+  }
+
+  const { data: existingLink, error: existingLinkError } = await admin
+    .from("doctor_secretaries")
+    .select("doctor_id")
+    .eq("doctor_id", doctorId)
+    .eq("secretary_user_id", secretaryUserId)
+    .maybeSingle();
+  if (existingLinkError) {
+    throw new Error(`checking for existing secretary link: ${existingLinkError.message}`);
+  }
+  if (!existingLink) {
+    const { error: linkError } = await admin
+      .from("doctor_secretaries")
+      .insert({ doctor_id: doctorId, secretary_user_id: secretaryUserId });
+    if (linkError) throw new Error(`linking secretary: ${linkError.message}`);
+  }
+  console.log(`Seeded secretary "${SECRETARY_EMAIL}" linked to doctor id=${doctorId}.`);
+}
+
+/** Creates the fictional doctor (profile, clinic, schedule, public-profile content). Returns the new doctor id. */
+async function seedDoctor(
+  admin: ReturnType<typeof createServiceRoleClient>,
+  existingUsers: { email?: string; id: string }[],
+): Promise<string> {
   const { data: specialty, error: specialtyError } = await admin
     .from("specialties")
     .upsert(
@@ -80,16 +135,11 @@ async function main() {
     throw new Error(`specialty: ${specialtyError?.message}`);
   }
 
-  const { data: existingUsers, error: listUsersError } = await admin.auth.admin.listUsers();
-  if (listUsersError) {
-    throw new Error(`listing auth users: ${listUsersError.message}`);
-  }
-
-  let userId = existingUsers.users.find((u) => u.email === DOCTOR_EMAIL)?.id;
+  let userId = existingUsers.find((u) => u.email === DOCTOR_EMAIL)?.id;
   if (!userId) {
     const { data: created, error: userError } = await admin.auth.admin.createUser({
       email: DOCTOR_EMAIL,
-      password: "local-dev-only-not-a-real-password",
+      password: DEV_PASSWORD,
       email_confirm: true,
     });
     if (userError || !created.user) {
@@ -231,6 +281,7 @@ async function main() {
   if (mediaError) throw new Error(`media appearances: ${mediaError.message}`);
 
   console.log(`Seeded doctor "${doctor.full_name}" (slug=${doctor.slug}, id=${doctor.id}).`);
+  return doctor.id as string;
 }
 
 // process.exitCode (not process.exit()) lets Node drain pending handles
