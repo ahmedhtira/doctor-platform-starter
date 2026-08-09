@@ -186,5 +186,46 @@
     "managementLinkTitle": "Nouveau lien de gestion",
     "managementLinkDescription": "L'ancien lien ne fonctionne plus. Conservez ce nouveau lien pour gérer votre rendez-vous.",
     "backToAppointment": "Retour au rendez-vous"
+  },
+  "email": {
+    "v1": {
+      "confirmation": {
+        "subject": "Rendez-vous confirmé — {doctorName}",
+        "heading": "Rendez-vous confirmé",
+        "greeting": "Bonjour {patientName},",
+        "intro": "Votre rendez-vous a bien été enregistré. Voici les détails :",
+        "doctorLabel": "Médecin",
+        "dateLabel": "Date et heure",
+        "clinicLabel": "Cabinet",
+        "appointmentTypeLabel": "Type de consultation",
+        "manageIntro": "Vous pouvez consulter, annuler ou modifier ce rendez-vous à tout moment via le lien ci-dessous :",
+        "manageButtonLabel": "Gérer mon rendez-vous",
+        "footer": "Ceci est un message automatique, merci de ne pas y répondre."
+      },
+      "cancellation": {
+        "subject": "Rendez-vous annulé — {doctorName}",
+        "heading": "Rendez-vous annulé",
+        "greeting": "Bonjour {patientName},",
+        "intro": "Votre rendez-vous suivant a été annulé :",
+        "doctorLabel": "Médecin",
+        "dateLabel": "Date et heure",
+        "clinicLabel": "Cabinet",
+        "footer": "Ceci est un message automatique, merci de ne pas y répondre."
+      },
+      "reschedule": {
+        "subject": "Rendez-vous modifié — {doctorName}",
+        "heading": "Rendez-vous modifié",
+        "greeting": "Bonjour {patientName},",
+        "introPatient": "Vous avez modifié votre rendez-vous. Voici les nouveaux détails :",
+        "introStaff": "Le cabinet a modifié votre rendez-vous. Voici les nouveaux détails :",
+        "doctorLabel": "Médecin",
+        "dateLabel": "Nouvelle date et heure",
+        "clinicLabel": "Cabinet",
+        "appointmentTypeLabel": "Type de consultation",
+        "manageIntro": "Vous pouvez consulter, annuler ou modifier à nouveau ce rendez-vous via le lien ci-dessous :",
+        "manageButtonLabel": "Gérer mon rendez-vous",
+        "footer": "Ceci est un message automatique, merci de ne pas y répondre."
+      }
+    }
   }
 }

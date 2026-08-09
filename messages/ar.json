@@ -186,5 +186,46 @@
     "managementLinkTitle": "رابط إدارة جديد",
     "managementLinkDescription": "لم يعد الرابط القديم يعمل. احتفظ بهذا الرابط الجديد لإدارة موعدك.",
     "backToAppointment": "العودة إلى الموعد"
+  },
+  "email": {
+    "v1": {
+      "confirmation": {
+        "subject": "تم تأكيد الموعد — {doctorName}",
+        "heading": "تم تأكيد الموعد",
+        "greeting": "مرحبًا {patientName}،",
+        "intro": "تم تسجيل موعدك بنجاح. إليك التفاصيل:",
+        "doctorLabel": "الطبيب",
+        "dateLabel": "التاريخ والوقت",
+        "clinicLabel": "العيادة",
+        "appointmentTypeLabel": "نوع الاستشارة",
+        "manageIntro": "يمكنك عرض هذا الموعد أو إلغاؤه أو تعديله في أي وقت عبر الرابط أدناه:",
+        "manageButtonLabel": "إدارة موعدي",
+        "footer": "هذه رسالة آلية، يرجى عدم الرد عليها."
+      },
+      "cancellation": {
+        "subject": "تم إلغاء الموعد — {doctorName}",
+        "heading": "تم إلغاء الموعد",
+        "greeting": "مرحبًا {patientName}،",
+        "intro": "تم إلغاء الموعد التالي:",
+        "doctorLabel": "الطبيب",
+        "dateLabel": "التاريخ والوقت",
+        "clinicLabel": "العيادة",
+        "footer": "هذه رسالة آلية، يرجى عدم الرد عليها."
+      },
+      "reschedule": {
+        "subject": "تم تعديل الموعد — {doctorName}",
+        "heading": "تم تعديل الموعد",
+        "greeting": "مرحبًا {patientName}،",
+        "introPatient": "لقد قمت بتعديل موعدك. إليك التفاصيل الجديدة:",
+        "introStaff": "قامت العيادة بتعديل موعدك. إليك التفاصيل الجديدة:",
+        "doctorLabel": "الطبيب",
+        "dateLabel": "التاريخ والوقت الجديد",
+        "clinicLabel": "العيادة",
+        "appointmentTypeLabel": "نوع الاستشارة",
+        "manageIntro": "يمكنك عرض هذا الموعد أو إلغاؤه أو تعديله مجددًا عبر الرابط أدناه:",
+        "manageButtonLabel": "إدارة موعدي",
+        "footer": "هذه رسالة آلية، يرجى عدم الرد عليها."
+      }
+    }
   }
 }

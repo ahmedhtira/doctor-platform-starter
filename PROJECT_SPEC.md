@@ -32,16 +32,20 @@ change, update this file in the same change — don't let it go stale again.
   Server Actions calling `book_appointment` in trusted server code, a
   confirmation view. No patient cancellation/rescheduling UI, no doctor
   dashboard. See "Booking flow (M4)" below.
-- **M5** (this milestone): patient self-service management — the
-  `/manage` token-exchange page the M4 confirmation screen links to but
-  didn't build, plus patient-initiated cancellation and rescheduling. No
-  login. No doctor dashboard (that's M6). See "Patient self-service (M5)"
-  below.
-- **M6+**: not started. Don't infer scope for it from this file. In
-  particular: the doctor/secretary dashboard and the actual email-sending
-  mechanism (including how a sent email gets a token-bearing link — see
-  "Booking flow (M4)" for why that's deferred, not decided) both belong
-  here.
+- **M5** (done): patient self-service management — the `/manage`
+  token-exchange page the M4 confirmation screen links to but didn't
+  build, plus patient-initiated cancellation and rescheduling. No login.
+  No doctor dashboard (that's M6). See "Patient self-service (M5)" below.
+- **M6** (done): the doctor/secretary dashboard — login, a doctor-context
+  switcher for secretaries staffing multiple doctors, Today/Calendar/
+  Availability pages, staff-initiated cancel/reschedule. See "Doctor/
+  secretary dashboard (M6)" below.
+- **M7** (this milestone): transactional email delivery — `email_outbox`
+  actually gets processed, via Resend + React Email, in fr/ar, closing the
+  specific hazard M4 flagged ("a naive retry-on-failure email sender could
+  accumulate unlimited valid tokens for one appointment"). See
+  "Transactional email delivery (M7)" below.
+- **M8+**: not started. Don't infer scope for it from this file.
 
 ## Product model
 
@@ -137,10 +141,10 @@ without one.
 | `blocked_periods` | one-off blocks; `clinic_id` nullable = doctor-wide |
 | `schedule_exceptions` | per-`(doctor_id, clinic_id, date)` override (closed / opened / custom hours) |
 | `appointments` | core record; composite FKs to `clinics`, `appointment_types`, `doctor_secretaries`; GiST exclusion on `(doctor_id, tstzrange(starts_at, ends_at))` where `status = 'confirmed'`; status ∈ `confirmed, cancelled, completed, no_show` |
-| `appointment_management_tokens` | hashed single-use patient self-service token |
+| `appointment_management_tokens` | hashed single-use patient self-service token; `email_outbox_id` (M7, nullable, `unique`) links a token to the outbox row it was minted for — at most one live token per email event, see "Transactional email delivery (M7)" |
 | `appointment_management_sessions` | short-lived session created when a token is redeemed; `session_secret_hash` (added M5) is the hash of an independent bearer secret — never the row's own `id`, see "Patient self-service (M5)" |
 | `doctor_qualifications`, `doctor_publications`, `doctor_books`, `doctor_media_appearances` | public-profile content, one-to-many on `doctor_id` |
-| `email_outbox` | queued transactional email; enqueued by privileged functions, sending itself is a later milestone |
+| `email_outbox` | queued transactional email; enqueued by privileged functions. `status` ∈ `pending, processing, sent, failed` (M7, was `pending, sent, failed`); `processing_started_at`/`claim_token` back the M7 claim lease, `attempts`/`last_error` track retries, `template_version` pins which `src/emails/v{n}/` component rendered/should render it, `first_send_attempt_at` backs the 23h provider-idempotency window — see "Transactional email delivery (M7)" |
 | `audit_log` | write-only-by-function record of privileged actions |
 
 ## Functions
@@ -148,10 +152,11 @@ without one.
 - `private.is_doctor_owner`, `private.is_staff_for_doctor` — RLS helpers.
 - `public.compute_available_slots(doctor_id, clinic_id, appointment_type_id, local_date, now)` — derives bookable slots from exceptions → working hours → breaks → blocked periods → existing confirmed appointments → minimum booking notice. `now` is a parameter (not `now()`) so lead-time behavior is deterministic in tests.
 - `private.is_within_working_window(doctor_id, clinic_id, starts_at, ends_at, now)` — the same exceptions/working-hours/breaks/blocked-periods resolution as `compute_available_slots`, **plus** the same minimum-booking-notice check, as a single boolean check for one candidate range. `now` was added in M4 after a real gap was found: this function originally checked only the schedule (working hours/breaks/blocked/exceptions), never past-ness or notice — only the *read* path (`compute_available_slots`) enforced notice, so a write could accept a past or too-soon `starts_at`. `book_appointment`/`reschedule_appointment` pass `now()` at their call sites; the parameter exists (rather than reading `now()` internally) so the function stays consistent with the rest of the schedule-resolution logic's testable-parameter style. Internal-only (revoked from every role, including `service_role`) — only ever called from within those two `SECURITY DEFINER` functions, which already run as the definer.
-- `public.book_appointment`, `public.cancel_appointment`, `public.reschedule_appointment` — the only way to mutate `appointments`. Both `cancel_appointment` and `reschedule_appointment` require the appointment's current status to be `confirmed` (errcode `55000` otherwise) — repeat cancellation/reschedule of an already-cancelled/completed/no_show appointment is rejected, not silently re-applied. Each takes either `p_actor_user_id` (staff path) or `p_management_session_secret_hash` (patient path, renamed from `p_management_session_id` in M5 — see "Patient self-service (M5)"); `reschedule_appointment` also invalidates (`used_at = now()`) any outstanding management tokens for that appointment on a successful reschedule, and can atomically issue a replacement via an optional `p_new_management_token_hash`.
-- `public.create_management_token`, `public.redeem_management_token` — token issuance/redemption, hash-only. `redeem_management_token` uses one generic error (`42501`, "invalid or expired token") for an unknown, expired, already-used, or reschedule-invalidated token — it never reveals which case applies. Since M5, also takes `p_session_secret_hash` and stores it on the created session (see "Patient self-service (M5)").
+- `public.book_appointment`, `public.cancel_appointment`, `public.reschedule_appointment` — the only way to mutate `appointments`. Both `cancel_appointment` and `reschedule_appointment` require the appointment's current status to be `confirmed` (errcode `55000` otherwise) — repeat cancellation/reschedule of an already-cancelled/completed/no_show appointment is rejected, not silently re-applied. Each takes either `p_actor_user_id` (staff path) or `p_management_session_secret_hash` (patient path, renamed from `p_management_session_id` in M5 — see "Patient self-service (M5)"); `reschedule_appointment` also invalidates (`used_at = now()`) any outstanding management tokens for that appointment on a successful reschedule, and can atomically issue a replacement via an optional `p_new_management_token_hash`. Since M7, all three build a full display-data snapshot (doctor/clinic/appointment-type names, patient name, `starts_at`/`ends_at`) into the `email_outbox.payload` they enqueue, joining `doctors`/`clinics`/`appointment_types` at enqueue time — body-only changes, no signature changes. See "Transactional email delivery (M7)".
+- `public.create_management_token`, `public.redeem_management_token` — token issuance/redemption, hash-only. `redeem_management_token` uses one generic error (`42501`, "invalid or expired token") for an unknown, expired, already-used, or reschedule-invalidated token — it never reveals which case applies. Since M5, also takes `p_session_secret_hash` and stores it on the created session (see "Patient self-service (M5)"). Since M7, also takes an optional `p_email_outbox_id`; when non-null, the insert becomes an upsert keyed on `appointment_management_tokens`'s `unique (email_outbox_id)` constraint rather than a plain insert — see "Transactional email delivery (M7)".
+- `public.claim_email_outbox_batch(p_limit, p_max_attempts, p_claim_token, p_stale_after_minutes default 10)` — M7. Leases a batch of `email_outbox` rows (`pending`, or `processing` past `p_stale_after_minutes` — crashed-worker recovery) via `for update skip locked`, stamping `claim_token`/`processing_started_at` and incrementing `attempts`. See "Transactional email delivery (M7)".
 
-All five `public` functions above: `service_role` execute only.
+All six `public` functions above: `service_role` execute only.
 
 ## Public doctor search (M2.5)
 
@@ -251,10 +256,11 @@ the raw token is generated in `generate-management-token.ts`, exists only
 in trusted server memory and the Server Action's return value to the
 booking widget, and is never persisted — not in `appointments`, not in
 `appointment_management_tokens` (only its SHA-256 hash), not in
-`email_outbox.payload` (which only ever held `{appointment_id}`, from M1
-onward — unchanged here), not in logs. `book_appointment` already
+`email_outbox.payload`, not in logs. `book_appointment` already
 enqueues the `email_outbox` row exactly as it did before M4; M4 does not
-send email.
+send email. (M7 note: `email_outbox.payload` only held `{appointment_id}`
+through M4/M5/M6 — M7 widened it into a full display-data snapshot, still
+containing no raw token; see "Transactional email delivery (M7)".)
 
 What M4 deliberately does **not** decide: how a *future* email-sending
 process gets a token-bearing link into that email, given the raw
@@ -265,7 +271,10 @@ multiple simultaneously-valid tokens), but that has real retry/idempotency
 implications — a naive retry-on-failure email sender could accumulate
 unlimited valid tokens for one appointment. That design, together with
 retry behavior, belongs to the email-delivery milestone and should be
-worked out and tested there, not assumed here.
+worked out and tested there, not assumed here. **Resolved in M7** — see
+"Transactional email delivery (M7)" below: the token is a deterministic
+derivation of the outbox row's own id, not a fresh mint, which sidesteps
+the multiple-live-tokens problem entirely rather than managing around it.
 
 **`book_appointment`'s existing validation is the write-time authority**
 for everything the booking widget's slot picker already tried to
@@ -406,10 +415,167 @@ same deferred-until-scale reasoning as M2.5's in-memory search filtering.
 
 **Deferred, not solved**: no re-entry once a session's 30-minute window
 lapses after its token was already burned — the only way back in is a
-fresh email, which is the not-yet-built email-delivery milestone's
-concern, consistent with how M4 already deferred that mechanism. No
+fresh email. M7 built the email-sending mechanism itself, but nothing in
+M7 adds a patient-facing "resend my management link" trigger — every M7
+enqueue is still driven by book/cancel/reschedule, so this remains
+deferred, just to a later milestone than M4 anticipated. No
 rate-limiting on token redemption, consistent with `book_appointment`
 also having none.
+
+## Doctor/secretary dashboard (M6)
+
+**Auth is Supabase's own `auth.users` sign-in**, not a custom scheme — a
+doctor or secretary logs in via `signInWithPassword` and every dashboard
+Server Action reads `auth.uid()` through the normal (RLS-bound) client,
+then passes it as `p_actor_user_id` into the same M1 staff path
+`cancel_appointment`/`reschedule_appointment` already had. No new
+privileged-function surface was needed for staff actions — M6 is
+almost entirely an application-layer milestone reusing M1's dual
+staff/patient actor design.
+
+**Doctor-context is preserved across the whole dashboard, not per-page.**
+A secretary can staff more than one doctor (`doctor_secretaries` is
+many-to-many); `src/lib/dashboard/auth-context.ts` resolves the full set
+of doctors a signed-in user may act for, and the currently-selected one is
+carried as a URL search param (`?doctorId=`) rather than component state —
+so switching doctors doesn't reset which dashboard page is open, and a
+bookmarked/shared dashboard link keeps working. `dashboard-links.ts`
+centralizes building every internal dashboard URL with that param
+attached, rather than each page hand-rolling it.
+
+**Staff-initiated reschedule rotates the management token — same
+no-lockout guarantee M5 built for the patient path.**
+`src/lib/dashboard/reschedule-staff-appointment.ts` mints a fresh token
+via `reschedule_appointment`'s existing `p_new_management_token_hash`
+parameter exactly like `reschedule-managed-appointment.ts` does; a staff
+member moving an appointment must never silently leave the patient
+without a working link, even though the staff member isn't the one who'll
+use it.
+
+**Today/Calendar/Availability pages** (`(dashboard)/dashboard`,
+`.../calendar`, `.../availability`) all read through
+`fetch-dashboard-appointments.ts` (a DI-core, same pattern as every other
+data-access module in this codebase) scoped to the selected doctor via
+RLS's `is_staff_for_doctor`, not a function — plain authenticated reads,
+no privileged function needed since RLS already governs staff visibility
+correctly for this case. Availability CRUD (working hours/breaks/blocked
+periods) is likewise plain RLS-governed reads/writes, not new functions.
+
+**E2E fixtures use the existing service-role test infrastructure**
+(`tests/e2e/dashboard-fixtures.ts`), not the dev seed script — consistent
+with how `tests/e2e/manage.spec.ts` already seeded its own M5 fixtures,
+so Playwright runs stay independent of whatever `scripts/seed-doctor.ts`
+currently seeds for manual dev use.
+
+## Transactional email delivery (M7)
+
+M4 built `email_outbox` and named the two open questions it deliberately
+left unanswered: how a sent email gets a token-bearing link (see "Booking
+flow (M4)"), and the retry/idempotency hazard that follows from it — "a
+naive retry-on-failure email sender could accumulate unlimited valid
+tokens for one appointment." M7 answers both, sends real mail via Resend +
+React Email in fr/ar, and extends enqueueing from booking-only to
+cancellation and both reschedule paths.
+
+**Claiming: `pending → processing → sent | failed`, a real recoverable
+lease, not a status flag set-and-hope.**
+`public.claim_email_outbox_batch(p_limit, p_max_attempts, p_claim_token,
+p_stale_after_minutes default 10)` atomically moves a batch of rows to
+`processing` (`for update skip locked`, so concurrent callers get disjoint
+row sets) and stamps each with `claim_token`/`processing_started_at`,
+incrementing `attempts`. It also reclaims rows still `processing` past
+`p_stale_after_minutes` — recovery for a worker that crashed mid-send.
+Every finalizing write (`process-email-outbox.ts`'s `finalizeSent`/
+`finalizeRetryableFailure`/`finalizeTerminalFailure`) is conditioned on
+`eq("claim_token", row.claim_token)`, not just `id` — a worker whose lease
+was reclaimed out from under it affects 0 rows on its own finalize, rather
+than asserting a status that's no longer its to set.
+
+**The core idempotency mechanism: a deterministic, re-derivable
+management token — not a fresh mint per attempt.** The token that goes
+into a delivery email is `HMAC-SHA256(EMAIL_TOKEN_DERIVATION_KEY,
+"doctor-platform/email-management-token/v1/" + email_outbox_id)`
+(`src/lib/email/derive-management-token.ts`), hex-encoded to the same
+64-character shape `managementTokenPattern` already validates — `/manage`,
+`redeem_management_token`, `manage-gate.tsx` needed zero changes. Given
+the same `email_outbox.id`, every attempt — same process, or a fresh one
+after a crash — derives the byte-identical raw token, without that raw
+value ever being stored anywhere. This is deliberately a separate
+function from `generate-management-token.ts` (random, single-use, backs
+the on-screen M4/M5/M6 tokens) rather than a shared one with a mode flag —
+the two have genuinely different reuse semantics.
+
+`appointment_management_tokens.email_outbox_id` (nullable, `unique`) lets
+`create_management_token` become a real upsert for the email path
+(`on conflict (email_outbox_id) do update ... returning`) rather than
+insert-and-hope: functionally a no-op after the first successful call
+(since the derived hash is always identical), and — critically — it never
+touches `used_at`, so a token already redeemed by the patient before a
+retry runs stays redeemed; reprocessing can't resurrect it. On-screen
+tokens (`email_outbox_id: null`) are untouched by this path; Postgres
+allows unlimited `NULL`s under a `unique` constraint.
+
+Because the token is deterministic, the email body is byte-identical on
+every attempt, which makes **one stable Resend idempotency key per outbox
+event** (`doctor-platform-email/<email_outbox_id>`, no attempt suffix)
+safe: Resend's documented same-key-same-body behavior (return the
+original response, no new send) applies on every retry, not just the
+first. `book_appointment`/`cancel_appointment`/`reschedule_appointment`
+reinforce this on the data side too — all three now snapshot
+doctor/clinic/appointment-type/patient display data into
+`email_outbox.payload` at enqueue time (joining `doctors`/`clinics`/
+`appointment_types`), so the worker renders straight from
+Zod-validated `row.payload` and never re-queries live appointment state,
+which could otherwise have changed between enqueue and a later retry.
+
+**Two failure modes that stable-idempotency alone doesn't cover, closed
+separately:**
+- **Template drift.** If this app's own template/copy changes while a row
+  is still `pending`, a retry could render different content against the
+  same stable idempotency key. `email_outbox.template_version` (defaults
+  to `1`) plus versioned template directories (`src/emails/v1/`, frozen
+  once shipped — a real change is a `src/emails/v2/` directory, never an
+  edit to `v1`) make "don't change what a shipped version renders" a
+  structural fact, not a policy someone has to remember.
+  `render-outbox-email.ts` dispatches on `(template, template_version)`
+  and throws a clear error for an unrecognized combination.
+- **Resend's idempotency memory is 24h, not indefinite.**
+  `email_outbox.first_send_attempt_at` is set exactly once, immediately
+  before the first real `sender()` call for a row, via an
+  `and first_send_attempt_at is null` guard — a no-op on every later
+  attempt. Before deriving/rendering/sending, the worker checks
+  `now() >= first_send_attempt_at + 23h`; past that, it refuses to call
+  Resend at all and finalizes the row `failed` with
+  `last_error = "provider idempotency retry window expired"` — the 1-hour
+  margin is deliberate slack against the 24h boundary, not a rounding
+  choice.
+
+**A link-bearing email is also refused if it would already be dead on
+arrival**: before deriving a token, the worker checks
+`payload.starts_at + 24h <= now()` (the same token-lifetime policy M4
+established) and finalizes `failed` with an explicit `last_error` if so —
+a badly backlogged worker should never hand out a link that fails the
+instant it's clicked. `appointment_cancellation` carries no link and is
+unaffected by this guard.
+
+**`EMAIL_TOKEN_DERIVATION_KEY` stability is load-bearing and has no
+rotation mechanism in M7.** It must stay the same for as long as any
+outbox row that could still be retried exists — rotating it changes the
+derived token for every not-yet-sent row, silently invalidating links that
+may already be in a patient's or staff member's hands. Generate via
+`openssl rand -hex 32`; documented in `.env.example`. A future milestone
+could version the derivation key the same way `template_version` versions
+templates (a `derivation_key_version` column) if rotation is ever needed —
+M7 doesn't build that, only leaves the door open.
+
+**Worker is a standalone script, not a Route Handler**: `npm run
+email:process` (`scripts/process-email-outbox.ts`, mirrors
+`scripts/seed-doctor.ts`'s own env-loading/service-role-client pattern)
+constructs the real `ResendEmailSender` and calls
+`process-email-outbox.ts`'s `processEmailOutbox(supabase, sender,
+options)` DI-core. `resend-sender.ts` deliberately has **no**
+`import "server-only"` — only this plain-`tsx` script imports it, the
+exact context that guard throws in.
 
 ## Local-only guardrail
 
