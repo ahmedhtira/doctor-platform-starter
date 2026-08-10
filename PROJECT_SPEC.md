@@ -40,12 +40,21 @@ change, update this file in the same change — don't let it go stale again.
   switcher for secretaries staffing multiple doctors, Today/Calendar/
   Availability pages, staff-initiated cancel/reschedule. See "Doctor/
   secretary dashboard (M6)" below.
-- **M7** (this milestone): transactional email delivery — `email_outbox`
-  actually gets processed, via Resend + React Email, in fr/ar, closing the
-  specific hazard M4 flagged ("a naive retry-on-failure email sender could
+- **M7** (done): transactional email delivery — `email_outbox` actually
+  gets processed, via Resend + React Email, in fr/ar, closing the specific
+  hazard M4 flagged ("a naive retry-on-failure email sender could
   accumulate unlimited valid tokens for one appointment"). See
   "Transactional email delivery (M7)" below.
-- **M8+**: not started. Don't infer scope for it from this file.
+- **M8** (this milestone): appointment outcome recording — staff mark a
+  past `confirmed` appointment `completed` or `no_show` via the new
+  `public.record_appointment_outcome` function. A staff/secretary-
+  management milestone was drafted and then explicitly cancelled as a
+  product-scope decision (doctor and secretary share one login for the
+  MVP) before any code was written; `doctor_secretaries` and
+  `src/lib/dashboard/auth-context.ts`/`resolve-staffed-doctors.ts` are
+  untouched by M8 and stay as M6 left them. See "Appointment outcomes
+  (M8)" below.
+- **M9+**: not started. Don't infer scope for it from this file.
 
 ## Product model
 
@@ -155,8 +164,9 @@ without one.
 - `public.book_appointment`, `public.cancel_appointment`, `public.reschedule_appointment` — the only way to mutate `appointments`. Both `cancel_appointment` and `reschedule_appointment` require the appointment's current status to be `confirmed` (errcode `55000` otherwise) — repeat cancellation/reschedule of an already-cancelled/completed/no_show appointment is rejected, not silently re-applied. Each takes either `p_actor_user_id` (staff path) or `p_management_session_secret_hash` (patient path, renamed from `p_management_session_id` in M5 — see "Patient self-service (M5)"); `reschedule_appointment` also invalidates (`used_at = now()`) any outstanding management tokens for that appointment on a successful reschedule, and can atomically issue a replacement via an optional `p_new_management_token_hash`. Since M7, all three build a full display-data snapshot (doctor/clinic/appointment-type names, patient name, `starts_at`/`ends_at`) into the `email_outbox.payload` they enqueue, joining `doctors`/`clinics`/`appointment_types` at enqueue time — body-only changes, no signature changes. See "Transactional email delivery (M7)".
 - `public.create_management_token`, `public.redeem_management_token` — token issuance/redemption, hash-only. `redeem_management_token` uses one generic error (`42501`, "invalid or expired token") for an unknown, expired, already-used, or reschedule-invalidated token — it never reveals which case applies. Since M5, also takes `p_session_secret_hash` and stores it on the created session (see "Patient self-service (M5)"). Since M7, also takes an optional `p_email_outbox_id`; when non-null, the insert becomes an upsert keyed on `appointment_management_tokens`'s `unique (email_outbox_id)` constraint rather than a plain insert — see "Transactional email delivery (M7)".
 - `public.claim_email_outbox_batch(p_limit, p_max_attempts, p_claim_token, p_stale_after_minutes default 10)` — M7. Leases a batch of `email_outbox` rows (`pending`, or `processing` past `p_stale_after_minutes` — crashed-worker recovery) via `for update skip locked`, stamping `claim_token`/`processing_started_at` and incrementing `attempts`. See "Transactional email delivery (M7)".
+- `public.record_appointment_outcome(p_appointment_id, p_actor_user_id, p_outcome)` — M8. Staff-only (no patient path — `p_actor_user_id` is required, not optional); transitions a `confirmed` appointment to `completed` or `no_show`. Locks the row (`select ... for update`) before any precondition check, not just before the write, so a concurrent conflicting request re-reads the post-commit row instead of racing the check-then-act sequence. Requires `ends_at <= now()`, errcode `55002` otherwise. See "Appointment outcomes (M8)".
 
-All six `public` functions above: `service_role` execute only.
+All seven `public` functions above: `service_role` execute only.
 
 ## Public doctor search (M2.5)
 
@@ -576,6 +586,58 @@ constructs the real `ResendEmailSender` and calls
 options)` DI-core. `resend-sender.ts` deliberately has **no**
 `import "server-only"` — only this plain-`tsx` script imports it, the
 exact context that guard throws in.
+
+## Appointment outcomes (M8)
+
+`appointments.status` has allowed `completed`/`no_show` since the original
+M1 check constraint, but nothing ever wrote either value — every
+appointment that passed its `ends_at` just stayed `confirmed` forever, with
+no way for a clinic to record whether a visit actually happened. M8 closes
+that one gap, nothing else. (A staff/secretary-management milestone was
+drafted as the original M8 candidate; it was cancelled as a product-scope
+decision — doctor and secretary share one login for the MVP — before any
+code was written. `doctor_secretaries` and the M6 auth-context/staffed-
+doctors resolution are untouched.)
+
+**One function, not two.** `completed` and `no_show` share every
+precondition (actor must be staff for the appointment's doctor, current
+status must be `confirmed`, the appointment must have already ended) and
+differ only in the status string written. `cancel_appointment`/
+`reschedule_appointment` are separate functions because they genuinely
+differ in *what* they write; splitting completion from no-show would just
+duplicate the whole precondition chain for a one-string difference.
+`public.record_appointment_outcome` takes a **required** `p_actor_user_id`
+— unlike `cancel_appointment`'s optional actor-or-session pair, there is no
+patient path here at all.
+
+**The row is locked (`select ... for update`) before any precondition
+check runs, not just before the write.** Without this, two concurrent
+requests against the same appointment (e.g. a stray double-click, or a
+cancel racing an outcome recording) could both read `status = 'confirmed'`
+before either commits, both pass their checks, and both "succeed" — the
+second silently overwriting the first with no error, since the plain
+`update ... where id = ...` has no status condition to make it safe on its
+own. With the lock, Postgres serializes the two calls at the `for update`
+step: whichever commits first wins, and the second re-reads the now-
+updated row and correctly rejects with `55000` instead of blindly
+overwriting. Covered by
+`tests/dashboard/record-staff-appointment-outcome.test.ts`'s concurrent
+test, which fires two conflicting `record_appointment_outcome` calls at
+the same appointment and asserts exactly one succeeds.
+
+**Time gating is enforced in SQL, not just the UI.** `ends_at > now()` →
+errcode `55002`, continuing the class-55 ("object not in prerequisite
+state") numbering `55000`/`55001` already use. Same write-layer-is-the-
+authority stance as `is_within_working_window` and the `confirmed`-status
+check — a client's clock is not authoritative, so the dashboard's button-
+visibility check (`appointment-actions.tsx`, gated on
+`status === "confirmed" && endsAt <= now()`) is a convenience, not the real
+guard.
+
+**No `email_outbox` enqueue.** Recording an outcome is an internal clinic
+record — nothing about what the patient was told (their appointment time,
+whether it's still happening) changes, so unlike book/cancel/reschedule
+this function never touches `email_outbox`.
 
 ## Local-only guardrail
 

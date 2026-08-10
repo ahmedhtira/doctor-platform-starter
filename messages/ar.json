@@ -80,7 +80,15 @@
       "errorSlotUnavailable": "تم للتو حجز هذا الموعد. يرجى اختيار موعد آخر.",
       "errorScheduleChanged": "هذا الموعد لم يعد متاحًا. تم تحديث المواعيد المتاحة.",
       "errorUnauthenticated": "انتهت صلاحية جلستك. يرجى تسجيل الدخول مرة أخرى.",
-      "errorUnknown": "حدث خطأ. يرجى المحاولة مرة أخرى."
+      "errorUnknown": "حدث خطأ. يرجى المحاولة مرة أخرى.",
+      "completeAction": "تحديد كمنتهٍ",
+      "noShowAction": "تحديد كغياب",
+      "completeConfirmPrompt": "هل تؤكد أن هذا الموعد قد تم بالفعل؟",
+      "noShowConfirmPrompt": "هل تؤكد أن المريض لم يحضر؟",
+      "outcomeConfirmYes": "تأكيد",
+      "outcomeConfirmNo": "إلغاء",
+      "recordingOutcome": "جارٍ التسجيل…",
+      "errorNotYetEnded": "لم ينتهِ هذا الموعد بعد."
     },
     "availability": {
       "title": "أوقات التوفر",

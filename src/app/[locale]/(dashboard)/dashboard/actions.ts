@@ -8,6 +8,10 @@ import {
   getStaffRescheduleSlots,
   rescheduleStaffAppointment,
 } from "@/lib/dashboard/reschedule-staff-appointment";
+import {
+  recordStaffAppointmentOutcome,
+  type StaffRecordedOutcomeAppointment,
+} from "@/lib/dashboard/record-staff-appointment-outcome";
 import type { AvailableSlot } from "@/lib/availability/compute-available-slots";
 import type { StaffCancelledAppointment } from "@/lib/dashboard/cancel-staff-appointment";
 import type { StaffRescheduledAppointment } from "@/lib/dashboard/reschedule-staff-appointment";
@@ -55,6 +59,49 @@ export async function cancelAppointmentAction(input: unknown): Promise<CancelApp
     const appointment = await cancelStaffAppointment(supabase, {
       appointmentId: parsed.data.appointmentId,
       actorUserId: actor.actorUserId,
+    });
+    return { success: true, appointment };
+  } catch (error) {
+    if (error instanceof ManageError) {
+      return { success: false, errorCode: error.code as ActionErrorCode, message: error.message };
+    }
+    return {
+      success: false,
+      errorCode: "UNKNOWN",
+      message: error instanceof Error ? error.message : "Unknown error.",
+    };
+  }
+}
+
+const recordOutcomeInputSchema = z.object({
+  appointmentId: z.uuid(),
+  outcome: z.enum(["completed", "no_show"]),
+});
+
+export type RecordAppointmentOutcomeResult =
+  | { success: true; appointment: StaffRecordedOutcomeAppointment }
+  | { success: false; errorCode: ActionErrorCode; message: string };
+
+export async function recordAppointmentOutcomeAction(
+  input: unknown,
+): Promise<RecordAppointmentOutcomeResult> {
+  const parsed = recordOutcomeInputSchema.safeParse(input);
+  if (!parsed.success) {
+    return { success: false, errorCode: "VALIDATION_ERROR", message: "Invalid request." };
+  }
+
+  const actor = await requireActorUserId();
+  if (!actor.success) {
+    return { success: false, errorCode: actor.errorCode, message: "Not authenticated." };
+  }
+
+  const supabase = createServiceRoleClient();
+
+  try {
+    const appointment = await recordStaffAppointmentOutcome(supabase, {
+      appointmentId: parsed.data.appointmentId,
+      actorUserId: actor.actorUserId,
+      outcome: parsed.data.outcome,
     });
     return { success: true, appointment };
   } catch (error) {

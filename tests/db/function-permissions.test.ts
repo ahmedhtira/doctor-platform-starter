@@ -147,6 +147,24 @@ describe("function permissions", () => {
     expect(error?.code).toBe("42501");
   });
 
+  it("denies anon/authenticated execute on record_appointment_outcome", async () => {
+    // Permission (grant/revoke) is checked before the function body ever
+    // runs, same as every other privileged-function permission test here —
+    // an arbitrary appointment id is fine, no real appointment needed.
+    const outcomeArgs = {
+      p_appointment_id: "00000000-0000-0000-0000-000000000000",
+      p_actor_user_id: doctorA.user.id,
+      p_outcome: "completed",
+    };
+
+    const anon = createAnonClient();
+    const anonAttempt = await anon.rpc("record_appointment_outcome", outcomeArgs);
+    expect(anonAttempt.error?.code).toBe("42501");
+
+    const authAttempt = await doctorA.client.rpc("record_appointment_outcome", outcomeArgs);
+    expect(authAttempt.error?.code).toBe("42501");
+  });
+
   it("denies anon/authenticated execute on redeem_management_token", async () => {
     const redeemArgs = {
       p_token_hash: sha256("never-issued"),

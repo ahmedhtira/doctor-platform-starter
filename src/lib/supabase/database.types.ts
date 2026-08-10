@@ -923,6 +923,35 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      record_appointment_outcome: {
+        Args: {
+          p_actor_user_id: string
+          p_appointment_id: string
+          p_outcome: string
+        }
+        Returns: {
+          appointment_type_id: string
+          cancelled_at: string | null
+          clinic_id: string
+          created_at: string
+          created_by_secretary_id: string | null
+          doctor_id: string
+          ends_at: string
+          id: string
+          notes: string | null
+          patient_email: string | null
+          patient_name: string
+          patient_phone: string
+          starts_at: string
+          status: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "appointments"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       redeem_management_token: {
         Args: { p_session_secret_hash: string; p_token_hash: string }
         Returns: {

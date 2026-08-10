@@ -80,7 +80,15 @@
       "errorSlotUnavailable": "Ce créneau vient d'être réservé. Veuillez en choisir un autre.",
       "errorScheduleChanged": "Ce créneau n'est plus disponible. Les disponibilités ont été actualisées.",
       "errorUnauthenticated": "Votre session a expiré. Veuillez vous reconnecter.",
-      "errorUnknown": "Une erreur est survenue. Veuillez réessayer."
+      "errorUnknown": "Une erreur est survenue. Veuillez réessayer.",
+      "completeAction": "Marquer comme terminé",
+      "noShowAction": "Marquer comme absent",
+      "completeConfirmPrompt": "Confirmer que ce rendez-vous a bien eu lieu ?",
+      "noShowConfirmPrompt": "Confirmer que le patient ne s'est pas présenté ?",
+      "outcomeConfirmYes": "Confirmer",
+      "outcomeConfirmNo": "Annuler",
+      "recordingOutcome": "Enregistrement…",
+      "errorNotYetEnded": "Ce rendez-vous n'est pas encore terminé."
     },
     "availability": {
       "title": "Disponibilités",

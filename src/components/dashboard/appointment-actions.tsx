@@ -8,12 +8,14 @@ import { SlotPicker } from "@/components/booking/slot-picker";
 import {
   cancelAppointmentAction,
   getStaffRescheduleSlotsAction,
+  recordAppointmentOutcomeAction,
   rescheduleAppointmentAction,
 } from "@/app/[locale]/(dashboard)/dashboard/actions";
 import type { AvailableSlot } from "@/lib/availability/compute-available-slots";
 import type { DashboardAppointment } from "@/lib/dashboard/fetch-dashboard-appointments";
+import type { AppointmentOutcome } from "@/lib/dashboard/record-staff-appointment-outcome";
 
-type Mode = "view" | "confirmingCancel" | "rescheduling" | "rescheduled";
+type Mode = "view" | "confirmingCancel" | "confirmingOutcome" | "rescheduling" | "rescheduled";
 
 function todayIsoDate(): string {
   return new Date().toISOString().slice(0, 10);
@@ -29,6 +31,8 @@ function errorMessageFor(t: ReturnType<typeof useTranslations>, code: string): s
       return t("errorSlotUnavailable");
     case "SCHEDULE_CHANGED":
       return t("errorScheduleChanged");
+    case "NOT_YET_ENDED":
+      return t("errorNotYetEnded");
     case "UNAUTHENTICATED":
       return t("errorUnauthenticated");
     default:
@@ -59,6 +63,14 @@ export function AppointmentActions({
   const [mode, setMode] = useState<Mode>("view");
   const [actionPending, startActionTransition] = useTransition();
   const [actionError, setActionError] = useState<string | null>(null);
+  const [pendingOutcome, setPendingOutcome] = useState<AppointmentOutcome | null>(null);
+  // Lazy initializer (same idiom as `date`/todayIsoDate() below) — read
+  // once at mount, not on every render, so this doesn't call the impure
+  // Date.now() directly in the render body. appointment.endsAt is stable
+  // for the lifetime of one mounted instance (appointment-list.tsx keys
+  // each row by appointment.id and the list itself is server-refreshed
+  // via router.refresh(), not mutated in place).
+  const [hasEnded] = useState(() => new Date(appointment.endsAt).getTime() <= Date.now());
 
   const [date, setDate] = useState(todayIsoDate());
   const [slots, setSlots] = useState<AvailableSlot[]>([]);
@@ -104,6 +116,22 @@ export function AppointmentActions({
   function handleCancel() {
     startActionTransition(async () => {
       const result = await cancelAppointmentAction({ appointmentId: appointment.id });
+      if (result.success) {
+        router.refresh();
+        return;
+      }
+      setActionError(errorMessageFor(t, result.errorCode));
+      setMode("view");
+    });
+  }
+
+  function handleRecordOutcome() {
+    if (!pendingOutcome) return;
+    startActionTransition(async () => {
+      const result = await recordAppointmentOutcomeAction({
+        appointmentId: appointment.id,
+        outcome: pendingOutcome,
+      });
       if (result.success) {
         router.refresh();
         return;
@@ -266,10 +294,43 @@ export function AppointmentActions({
     );
   }
 
+  if (mode === "confirmingOutcome" && pendingOutcome) {
+    return (
+      <div className="mt-3 space-y-3">
+        <p className="text-sm">
+          {pendingOutcome === "completed" ? t("completeConfirmPrompt") : t("noShowConfirmPrompt")}
+        </p>
+        {actionError ? <p className="text-destructive text-sm">{actionError}</p> : null}
+        <div className="flex gap-2">
+          <Button
+            type="button"
+            size="sm"
+            onClick={handleRecordOutcome}
+            disabled={actionPending}
+          >
+            {actionPending ? t("recordingOutcome") : t("outcomeConfirmYes")}
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            onClick={() => {
+              setPendingOutcome(null);
+              setMode("view");
+            }}
+            disabled={actionPending}
+          >
+            {t("outcomeConfirmNo")}
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="mt-3 space-y-2">
       {actionError ? <p className="text-destructive text-sm">{actionError}</p> : null}
-      <div className="flex gap-2">
+      <div className="flex flex-wrap gap-2">
         <Button type="button" size="sm" variant="outline" onClick={beginReschedule}>
           {t("rescheduleAction")}
         </Button>
@@ -284,6 +345,34 @@ export function AppointmentActions({
         >
           {t("cancelAction")}
         </Button>
+        {hasEnded ? (
+          <>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                setActionError(null);
+                setPendingOutcome("completed");
+                setMode("confirmingOutcome");
+              }}
+            >
+              {t("completeAction")}
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                setActionError(null);
+                setPendingOutcome("no_show");
+                setMode("confirmingOutcome");
+              }}
+            >
+              {t("noShowAction")}
+            </Button>
+          </>
+        ) : null}
       </div>
     </div>
   );
