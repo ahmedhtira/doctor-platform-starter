@@ -2,11 +2,15 @@
 
 Doctor presentation and appointment-booking platform — public patient booking site (French/Arabic, RTL-aware) plus a private doctor/secretary dashboard.
 
-**Current status: M1 — database schema, RLS, and booking functions against
-local Supabase.** No UI wiring, no real email sending, no hosted project yet.
+**Current status: M0–M9 done.** Full patient booking/self-service flow,
+doctor/secretary dashboard, transactional email (Resend), appointment
+outcome recording, and launch-readiness/deployment preparation are all
+built and tested against **local Supabase only** — no hosted Supabase
+project has been created or touched yet, and nothing has been deployed.
 See [`PROJECT_SPEC.md`](PROJECT_SPEC.md) for the full schema, security
-model, and milestone scope — it's the authoritative reference, kept current
-as the source of truth.
+model, and milestone scope, and [`DEPLOYMENT.md`](DEPLOYMENT.md) for the
+production deployment runbook and launch checklist — both are kept
+current as the source of truth.
 
 ## Stack
 
@@ -15,7 +19,7 @@ Next.js (App Router) · TypeScript (strict) · Tailwind CSS v4 · shadcn/ui · n
 ## Prerequisites
 
 - Node.js 20+ and npm
-- Docker Desktop (for the local Supabase stack — no hosted project is used in M1)
+- Docker Desktop (for the local Supabase stack — no hosted project is used in local development)
 
 ## Setup
 
@@ -26,11 +30,12 @@ cp .env.example .env.local
 
 Fill in `.env.local` with your own Supabase project URL/keys once a Supabase project exists (see [`.env.example`](.env.example) for the required variables). No real credentials are committed anywhere in this repo — `.env.local` is gitignored.
 
-## Local database (M1)
+## Local database
 
 ```bash
 npm run db:start   # supabase start — local Postgres/Auth/API via Docker
 npm run db:reset    # apply supabase/migrations to a fresh local database
+npm run db:seed      # seed a demo doctor/secretary/clinic for manual dev use
 npm run test:db      # RLS, function-permission, composite-FK, overlap tests
 npm run db:stop     # supabase stop
 ```
@@ -55,6 +60,8 @@ local; nothing here ever touches a hosted Supabase project. See
 | `npm run test`         | Vitest unit tests (single run)                                             |
 | `npm run test:watch`   | Vitest in watch mode                                                       |
 | `npm run e2e`          | Playwright end-to-end tests (builds and starts the app automatically)      |
+| `npm run email:process` | Manually run the M7 email worker once against `email_outbox`             |
+| `npm run email:dev`    | React Email's local template preview server                                |
 
 ## Project structure
 
@@ -65,15 +72,20 @@ src/
       layout.tsx               # root layout: <html lang dir>, next-intl provider
       (public)/                 # public patient-facing site, no auth
       (auth)/login/              # login page — never wrapped by the dashboard layout
-      (dashboard)/               # doctor/secretary dashboard shell (placeholder, no auth guard yet)
+      (dashboard)/               # doctor/secretary dashboard: auth-gated, Today/Calendar/Availability
+    api/cron/process-email-outbox/ # Vercel Cron trigger for the M7 email worker (see DEPLOYMENT.md)
+    robots.ts                  # crawl rules — excludes /login, /dashboard, /manage
   components/ui/               # shadcn/ui primitives
+  emails/                      # React Email templates (versioned, src/emails/v1/)
   i18n/                        # next-intl routing/navigation/request config
-  lib/supabase/                # browser / server / service-role client factories
-  middleware.ts                # locale routing only — not a security boundary
+  lib/
+    supabase/                  # browser / server / service-role client factories
+    email/                     # M7 outbox worker, Resend sender, template rendering
+  proxy.ts                    # locale routing only — not a security boundary (Next 16's middleware.ts equivalent)
 messages/
   fr.json, ar.json             # UI copy
 tests/
-  unit/                        # Vitest
+  dashboard/, db/, booking/, email/  # Vitest, per-suite vitest.config.*.ts
   e2e/                         # Playwright
 ```
 
@@ -85,10 +97,14 @@ tests/
 
 ## Notes on scope
 
-M1 is the database layer only: schema, RLS, and the privileged booking/
-cancellation/token functions, tested directly against local Supabase. It
-intentionally does **not** include: any UI wiring to this schema,
-authentication/login logic in the app, real transactional email sending
-(rows are enqueued to `email_outbox`, not sent), or PWA functionality.
-Those are covered by later milestones — see
-[`PROJECT_SPEC.md`](PROJECT_SPEC.md).
+M0–M9 cover: the full public patient site and booking flow, patient
+self-service (view/cancel/reschedule via emailed single-use tokens), the
+doctor/secretary dashboard (login, Today/Calendar/Availability,
+appointment outcome recording), real transactional email via Resend, and
+launch-readiness preparation (security headers, robots, a production
+email-worker trigger, deployment/backup/smoke-test runbooks). See
+[`PROJECT_SPEC.md`](PROJECT_SPEC.md) for the full milestone-by-milestone
+history and every architectural decision, and
+[`DEPLOYMENT.md`](DEPLOYMENT.md) for how to actually deploy this. No
+hosted Supabase project has been created or touched, and nothing has been
+deployed — that's the next step, not something this repo has done.

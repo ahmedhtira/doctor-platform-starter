@@ -54,7 +54,12 @@ change, update this file in the same change — don't let it go stale again.
   `src/lib/dashboard/auth-context.ts`/`resolve-staffed-doctors.ts` are
   untouched by M8 and stay as M6 left them. See "Appointment outcomes
   (M8)" below.
-- **M9+**: not started. Don't infer scope for it from this file.
+- **M9** (this milestone): launch readiness and production deployment
+  preparation — an audit-then-fix milestone, not a feature milestone. No
+  hosted Supabase project touched, nothing deployed. See "Launch
+  readiness (M9)" below and [`DEPLOYMENT.md`](DEPLOYMENT.md) for the
+  actual runbooks/checklists.
+- **M10+**: not started. Don't infer scope for it from this file.
 
 ## Product model
 
@@ -639,9 +644,95 @@ record — nothing about what the patient was told (their appointment time,
 whether it's still happening) changes, so unlike book/cancel/reschedule
 this function never touches `email_outbox`.
 
+## Launch readiness (M9)
+
+An audit-then-fix milestone, not a feature milestone — the goal was
+making the existing M0–M8 MVP safe and ready for a small real-world
+pilot, not adding product surface. Three parallel audits (environment
+variables/secrets/service-role usage, security headers/cookies/robots/RLS
+grants, deployment/ops/logging) found the application's own security
+model already matched this document exactly — no RLS drift, no
+over-broad grant, no secret ever reachable from client code or committed
+to git history. The gaps were all *around* the application, not in it;
+this section records the decisions made to close them.
+[`DEPLOYMENT.md`](DEPLOYMENT.md) has the actual step-by-step checklists
+this section doesn't repeat.
+
+**Security headers: two, not a full CSP.** `next.config.ts` gained a
+platform-wide `X-Content-Type-Options: nosniff`/`X-Frame-Options: DENY`
+block, additive alongside the M5 `/manage`-specific block (unchanged). A
+full Content-Security-Policy was considered and deliberately deferred —
+getting one right for this app's actual inline-script/style needs is a
+meaningfully riskier change than a small pilot's launch needs, not a
+change to make hastily inside an audit milestone.
+`Strict-Transport-Security` isn't set here either; Vercel applies it
+automatically for custom domains on its platform, verified by
+`DEPLOYMENT.md`'s smoke test rather than asserted redundantly in
+application code.
+
+**`src/app/robots.ts` (new).** Disallows `/*/login`, `/*/dashboard`,
+`/*/manage` for every crawler; the public patient-facing site (doctor
+search/profiles) stays allowed — it's a marketplace, being findable is
+the point. No sitemap; none existed before M9 and none was added.
+
+**The email worker finally has a production trigger.** M7 built
+`processEmailOutbox` (`src/lib/email/process-email-outbox.ts`) and a
+manual script to run it (`npm run email:process`), but nothing was ever
+wired to actually call that script once deployed — every confirmation/
+cancellation/reschedule email would have silently never sent in
+production. New: `src/app/api/cron/process-email-outbox/route.ts`, a
+thin Route Handler that checks a `CRON_SECRET` against the
+`Authorization: Bearer <secret>` header Vercel automatically sends to
+cron invocations (verified live against Vercel's own docs while
+designing this), then calls the identical, unmodified
+`processEmailOutbox()` DI-core the manual script already used — no
+duplicated logic. `vercel.json` schedules it every 5 minutes.
+
+**That 5-minute schedule requires Vercel Pro or higher — this is
+deliberate, not an oversight.** Vercel Hobby restricts cron jobs to once
+per day and will reject a more-frequent `vercel.json` at deploy time.
+Once-daily batching was considered and rejected: a patient booking an
+appointment expects a confirmation email within minutes, and silently
+downgrading the committed schedule to satisfy a free tier would quietly
+break the exact product experience M7 was built for. `DEPLOYMENT.md`
+states the two real options explicitly (upgrade to Pro, or point a
+different scheduler at the same endpoint) rather than picking one
+silently.
+
+**Cron concurrency needed no new locking — M7's claim/lease design
+already covers it.** Vercel documents cron delivery as "best effort" and
+warns invocations can occasionally overlap or duplicate, recommending
+idempotent, lock-protected handlers. No Redis or distributed lock was
+added for M9: `claim_email_outbox_batch`'s `for update skip locked`
+already gives concurrent callers disjoint row sets, `claim_token`
+ownership already prevents a reclaimed lease from being double-finalized,
+stale-lease recovery already handles a killed mid-batch invocation, and
+Resend's own stable per-row idempotency key already absorbs a genuine
+duplicate send attempt as a no-op. M9 is the first time something
+(Vercel Cron) can actually invoke the worker concurrently with itself in
+production; M7's design was already built to be safe under exactly that,
+not just local sequential testing. See "Transactional email delivery
+(M7)" above for the full mechanism.
+
+**Basic logging, not a monitoring SaaS.** Every Server Action previously
+caught errors and returned a client-facing message without logging
+anywhere — a genuine production failure would have been invisible.
+`console.error` was added at each *unexpected*-error path only (the
+generic `catch` fallback after any classified `ManageError`/
+`BookingError` branch, and `availability/actions.ts`'s previously-silent
+Supabase-error early-returns) — deliberately not at classified
+business-rule rejections like "slot no longer available," which are
+expected outcomes, not bugs, and would just be noise. Vercel captures
+`console.*` as function logs automatically; no new dependency. A real
+error-monitoring SaaS was considered and deferred as unnecessary at pilot
+scale — a call to make again once usage grows past comfortable log
+tailing, not resolved here.
+
 ## Local-only guardrail
 
-Nothing in M1 touches a hosted Supabase project. Migrations apply only via
-`supabase db reset` against the local Docker stack; tests read
-`TEST_SUPABASE_*` env vars pointed at `127.0.0.1` from a gitignored
-`.env.test.local`, never `.env.local`.
+Nothing in M1–M8 touches a hosted Supabase project. Local migrations
+apply only via `supabase db reset` against the local Docker stack; tests
+read `TEST_SUPABASE_*` env vars pointed at `127.0.0.1` from a gitignored
+`.env.test.local`, never `.env.local`. M9 adds a deployment *runbook*
+(`DEPLOYMENT.md`) for a future hosted project — writing that runbook did
+not itself touch or create one; this guardrail held throughout M9 too.

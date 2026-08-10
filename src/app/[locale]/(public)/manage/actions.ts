@@ -79,6 +79,7 @@ export async function redeemManagementTokenAction(
     if (error instanceof ManageError) {
       return { success: false, errorCode: "INVALID_OR_EXPIRED_TOKEN", message: error.message };
     }
+    console.error("redeemManagementTokenAction: unexpected error", error);
     return {
       success: false,
       errorCode: "UNKNOWN",
@@ -113,6 +114,7 @@ export async function cancelManagedAppointmentAction(): Promise<CancelManagedApp
         message: error.message,
       };
     }
+    console.error("cancelManagedAppointmentAction: unexpected error", error);
     return {
       success: false,
       errorCode: "UNKNOWN",
@@ -166,6 +168,7 @@ export async function rescheduleManagedAppointmentAction(
         message: error.message,
       };
     }
+    console.error("rescheduleManagedAppointmentAction: unexpected error", error);
     return {
       success: false,
       errorCode: "UNKNOWN",
@@ -212,6 +215,7 @@ export async function getManageSlotsAction(localDate: unknown): Promise<GetManag
     });
     return { success: true, slots };
   } catch (error) {
+    console.error("getManageSlotsAction: unexpected error", error);
     return { success: false, message: error instanceof Error ? error.message : "Unknown error." };
   }
 }

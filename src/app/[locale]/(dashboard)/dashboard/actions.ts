@@ -65,6 +65,7 @@ export async function cancelAppointmentAction(input: unknown): Promise<CancelApp
     if (error instanceof ManageError) {
       return { success: false, errorCode: error.code as ActionErrorCode, message: error.message };
     }
+    console.error("cancelAppointmentAction: unexpected error", error);
     return {
       success: false,
       errorCode: "UNKNOWN",
@@ -108,6 +109,7 @@ export async function recordAppointmentOutcomeAction(
     if (error instanceof ManageError) {
       return { success: false, errorCode: error.code as ActionErrorCode, message: error.message };
     }
+    console.error("recordAppointmentOutcomeAction: unexpected error", error);
     return {
       success: false,
       errorCode: "UNKNOWN",
@@ -146,6 +148,7 @@ export async function getStaffRescheduleSlotsAction(
     });
     return { success: true, slots };
   } catch (error) {
+    console.error("getStaffRescheduleSlotsAction: unexpected error", error);
     return { success: false, message: error instanceof Error ? error.message : "Unknown error." };
   }
 }
@@ -189,6 +192,7 @@ export async function rescheduleAppointmentAction(
     if (error instanceof ManageError) {
       return { success: false, errorCode: error.code as ActionErrorCode, message: error.message };
     }
+    console.error("rescheduleAppointmentAction: unexpected error", error);
     return {
       success: false,
       errorCode: "UNKNOWN",

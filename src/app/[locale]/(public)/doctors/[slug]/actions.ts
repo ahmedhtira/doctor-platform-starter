@@ -38,6 +38,7 @@ export async function getSlotsAction(input: unknown): Promise<GetSlotsResult> {
     });
     return { success: true, slots };
   } catch (error) {
+    console.error("getSlotsAction: unexpected error", error);
     return { success: false, message: error instanceof Error ? error.message : "Unknown error." };
   }
 }
@@ -71,6 +72,7 @@ export async function submitBookingAction(input: unknown): Promise<SubmitBooking
     if (error instanceof BookingError) {
       return { success: false, errorCode: error.code, message: error.message };
     }
+    console.error("submitBookingAction: unexpected error", error);
     return {
       success: false,
       errorCode: "UNKNOWN",

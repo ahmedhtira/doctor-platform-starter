@@ -67,7 +67,10 @@ export async function createWorkingHoursAction(formData: FormData): Promise<void
     start_time: parsed.data.startTime,
     end_time: parsed.data.endTime,
   });
-  if (error) return;
+  if (error) {
+    console.error("createWorkingHoursAction: insert failed", error);
+    return;
+  }
 
   refresh();
 }
@@ -79,7 +82,15 @@ export async function deleteWorkingHoursAction(formData: FormData): Promise<void
   if (typeof id !== "string") return;
 
   const supabase = await createClient();
-  await supabase.from("working_hours").delete().eq("id", id).eq("doctor_id", doctorId);
+  const { error } = await supabase
+    .from("working_hours")
+    .delete()
+    .eq("id", id)
+    .eq("doctor_id", doctorId);
+  if (error) {
+    console.error("deleteWorkingHoursAction: delete failed", error);
+    return;
+  }
   refresh();
 }
 
@@ -107,7 +118,10 @@ export async function createBreakAction(formData: FormData): Promise<void> {
     start_time: parsed.data.startTime,
     end_time: parsed.data.endTime,
   });
-  if (error) return;
+  if (error) {
+    console.error("createBreakAction: insert failed", error);
+    return;
+  }
 
   refresh();
 }
@@ -119,7 +133,11 @@ export async function deleteBreakAction(formData: FormData): Promise<void> {
   if (typeof id !== "string") return;
 
   const supabase = await createClient();
-  await supabase.from("breaks").delete().eq("id", id).eq("doctor_id", doctorId);
+  const { error } = await supabase.from("breaks").delete().eq("id", id).eq("doctor_id", doctorId);
+  if (error) {
+    console.error("deleteBreakAction: delete failed", error);
+    return;
+  }
   refresh();
 }
 
@@ -155,7 +173,10 @@ export async function createBlockedPeriodAction(formData: FormData): Promise<voi
     .eq("id", parsed.data.clinicId)
     .eq("doctor_id", doctorId)
     .maybeSingle();
-  if (clinicError || !clinic) return;
+  if (clinicError || !clinic) {
+    if (clinicError) console.error("createBlockedPeriodAction: clinic lookup failed", clinicError);
+    return;
+  }
 
   const startsAt = DateTime.fromISO(parsed.data.startsAtLocal, { zone: clinic.timezone });
   const endsAt = DateTime.fromISO(parsed.data.endsAtLocal, { zone: clinic.timezone });
@@ -168,7 +189,10 @@ export async function createBlockedPeriodAction(formData: FormData): Promise<voi
     ends_at: endsAt.toUTC().toISO(),
     reason: parsed.data.reason ?? null,
   });
-  if (error) return;
+  if (error) {
+    console.error("createBlockedPeriodAction: insert failed", error);
+    return;
+  }
 
   refresh();
 }
@@ -180,7 +204,15 @@ export async function deleteBlockedPeriodAction(formData: FormData): Promise<voi
   if (typeof id !== "string") return;
 
   const supabase = await createClient();
-  await supabase.from("blocked_periods").delete().eq("id", id).eq("doctor_id", doctorId);
+  const { error } = await supabase
+    .from("blocked_periods")
+    .delete()
+    .eq("id", id)
+    .eq("doctor_id", doctorId);
+  if (error) {
+    console.error("deleteBlockedPeriodAction: delete failed", error);
+    return;
+  }
   refresh();
 }
 
@@ -221,7 +253,10 @@ export async function upsertScheduleExceptionAction(formData: FormData): Promise
     },
     { onConflict: "doctor_id,clinic_id,date" },
   );
-  if (error) return;
+  if (error) {
+    console.error("upsertScheduleExceptionAction: upsert failed", error);
+    return;
+  }
 
   refresh();
 }
@@ -233,6 +268,14 @@ export async function deleteScheduleExceptionAction(formData: FormData): Promise
   if (typeof id !== "string") return;
 
   const supabase = await createClient();
-  await supabase.from("schedule_exceptions").delete().eq("id", id).eq("doctor_id", doctorId);
+  const { error } = await supabase
+    .from("schedule_exceptions")
+    .delete()
+    .eq("id", id)
+    .eq("doctor_id", doctorId);
+  if (error) {
+    console.error("deleteScheduleExceptionAction: delete failed", error);
+    return;
+  }
   refresh();
 }

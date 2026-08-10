@@ -4,13 +4,15 @@ import type { EmailSender, SendEmailResult } from "./send-email";
 
 /**
  * The real Resend client, wired to EmailSender's contract. Deliberately
- * has NO `import "server-only"` — only scripts/process-email-outbox.ts
- * (plain `tsx`, outside Next's bundler) ever imports this file, the exact
- * context where that guard unconditionally throws (same reason
+ * has NO `import "server-only"`. Two call sites, as of M9:
+ * scripts/process-email-outbox.ts (plain `tsx`, outside Next's bundler —
+ * the guard unconditionally throws there, same reason
  * scripts/seed-doctor.ts reimplements createServiceRoleClient() instead
- * of importing the guarded service-role.ts). Nothing in src/app or
- * src/components imports this in M7, so there's no accidental-client-bundle
- * risk the guard would actually be protecting against here.
+ * of importing the guarded service-role.ts) and
+ * src/app/api/cron/process-email-outbox/route.ts (a Route Handler, which
+ * never bundles into client code regardless of the guard — Next.js's own
+ * architecture already prevents that). Neither needs the guard; nothing
+ * in src/components imports this file.
  */
 export function createResendSender(): EmailSender {
   const resend = new Resend(getResendApiKey());
