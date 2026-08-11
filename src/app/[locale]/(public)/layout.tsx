@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import Image from "next/image";
 import { useTranslations } from "next-intl";
 import { Link } from "@/i18n/navigation";
 import { LocaleSwitcher } from "@/components/locale-switcher";
@@ -14,8 +15,15 @@ export default function PublicLayout({ children }: { children: ReactNode }) {
     <>
       <header className="border-border/70 bg-background/85 sticky top-0 z-40 border-b backdrop-blur-md">
         <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-3.5 sm:px-6">
-          <Link href="/" className="font-heading text-lg font-semibold tracking-tight">
-            {t("common.appName")}
+          <Link href="/" className="flex items-center">
+            <Image
+              src="/dewini-logo.png"
+              alt="Dewini"
+              width={1266}
+              height={552}
+              priority
+              className="h-8 w-auto sm:h-10"
+            />
           </Link>
           <LocaleSwitcher />
         </div>
