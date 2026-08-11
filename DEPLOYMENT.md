@@ -37,6 +37,7 @@ live — do not rely on any fallback in production.
 | `APP_URL` | No | `src/lib/email/env.ts` | **Must** be your real production origin (e.g. `https://your-domain.com`). A wrong/unset value silently embeds broken `localhost` management links in every patient email |
 | `EMAIL_TOKEN_DERIVATION_KEY` | **Yes** | `src/lib/email/env.ts` | Generate via `openssl rand -hex 32`. **Stability warning already documented in `.env.example` applies in production too**: never rotate this while any retriable `email_outbox` row exists |
 | `CRON_SECRET` | **Yes** | `src/app/api/cron/process-email-outbox/route.ts` | New in M9 — only needed if using the Vercel Cron trigger (§5). Generate via `openssl rand -hex 32` |
+| `PLATFORM_ADMIN_USER_ID` | No (a user id, not a secret — but keep it private in practice) | `src/lib/admin/env.ts` | New in M10 — the platform admin's `auth.users.id` UUID. See §2a for how to bootstrap this account and find its id |
 
 **Verified during M9's audit, not just assumed:** every one of these is
 documented here and in `.env.example`; nothing is read anywhere in `src/`
@@ -73,9 +74,39 @@ Handler), and tests — never from anything that ships to the browser.
    `supabase gen types typescript --linked > src/lib/supabase/database.types.ts`.
 7. Do **not** run `npm run db:seed` against the hosted project —
    `scripts/seed-doctor.ts` is dev/demo fixture data, not a production
-   onboarding tool. Provisioning real doctors on a hosted project is
-   out of scope for M9 (no self-service doctor signup exists yet — see
-   `PROJECT_SPEC.md`'s Product model).
+   onboarding tool. Real doctors are provisioned through `/admin` — see
+   §2a.
+
+## 2a. Platform admin bootstrap (M10)
+
+There is no signup flow and no "first admin" button — the admin account
+is created once, out-of-band, before `/admin` can be used at all.
+
+1. In the hosted project's Supabase Studio, go to **Authentication →
+   Users → Add user** and create the platform admin's own account (your
+   real email, a strong password you choose yourself — this is the one
+   account in the whole system where the platform, not a doctor, sets
+   the password). Confirm the email manually in the same dialog if
+   Studio doesn't do it automatically, so the account isn't left
+   half-verified.
+2. Copy that user's **id** (a UUID, shown in the Users table/detail
+   view) — not the email. Set it as `PLATFORM_ADMIN_USER_ID` (§1) in
+   your hosting platform's environment variables.
+3. In the hosted project's Auth settings, add your real production
+   origin's `/*/auth/confirm` path to **Redirect URLs** (e.g.
+   `https://your-domain.com/*`, or the exact `/{locale}/auth/confirm`
+   paths for each locale you ship) — `supabase/config.toml`'s
+   `127.0.0.1` value is local-CLI-only. A `redirectTo` sent with
+   `generateLink()` that isn't on this allow-list fails silently on
+   Supabase's side, breaking every doctor invite and password-reset link.
+4. Also review **Auth → Email → Link expiry** (or the equivalent
+   settings field) — the default is generally adequate, but a doctor
+   invite can reasonably sit unopened for a few days; don't shorten it
+   below that without a "resend invite" mechanism to fall back on (none
+   exists yet — see `PROJECT_SPEC.md`'s M10 section).
+5. Log in at `https://your-domain.com/{locale}/login` with the admin
+   account — you should land on `/admin`, not `/dashboard`. This is the
+   verification that `PLATFORM_ADMIN_USER_ID` was set correctly.
 
 ## 3. Resend / email domain configuration
 
@@ -246,9 +277,9 @@ this milestone's code changes:
   stricter `Cache-Control`/`Referrer-Policy`/`X-Robots-Tag` block
   (unchanged). No Content-Security-Policy — deliberately out of scope,
   see `PROJECT_SPEC.md`.
-- `src/app/robots.ts` (new) disallows `/*/login`, `/*/dashboard`,
-  `/*/manage` for all crawlers; the public patient-facing site stays
-  discoverable.
+- `src/app/robots.ts` disallows `/*/login`, `/*/dashboard`, `/*/manage`,
+  and, new in M10, `/*/admin` and `/*/auth`, for all crawlers; the
+  public patient-facing site stays discoverable.
 - Every cookie in the app (`manage_session` and Supabase's own auth
   cookie) already matches `PROJECT_SPEC.md`'s documented settings —
   verified, not changed.

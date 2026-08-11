@@ -165,6 +165,95 @@ describe("function permissions", () => {
     expect(authAttempt.error?.code).toBe("42501");
   });
 
+  // M10 regression coverage: the exact gap that prompted migration
+  // 20260101000022's design (private.is_staff_for_doctor made
+  // suspension-aware) -- a suspended doctor's actor must be rejected by
+  // every one of these privileged functions, even with an otherwise-valid
+  // session, not just hidden from dashboard pages.
+
+  async function setupSuspendableDoctorWithHours(): Promise<DoctorFixture> {
+    const doctor = await createDoctorFixture(admin);
+    userIds.push(doctor.user.id);
+    await admin.from("working_hours").insert({
+      doctor_id: doctor.doctorId,
+      clinic_id: doctor.clinicId,
+      day_of_week: new Date("2030-01-08T00:00:00Z").getUTCDay(),
+      start_time: "00:00",
+      end_time: "23:59",
+    });
+    return doctor;
+  }
+
+  async function suspend(doctorId: string): Promise<void> {
+    const { error } = await admin
+      .from("doctors")
+      .update({ suspended_at: new Date().toISOString() })
+      .eq("id", doctorId);
+    if (error) throw new Error(`failed to suspend doctor: ${error.message}`);
+  }
+
+  it("rejects book_appointment for a suspended doctor (M10)", async () => {
+    const doctor = await setupSuspendableDoctorWithHours();
+    await suspend(doctor.doctorId);
+
+    const { error } = await admin.rpc("book_appointment", bookingArgs(doctor, "2030-01-08T10:00:00Z"));
+    expect(error).not.toBeNull();
+    expect(error?.code).toBe("42501");
+  });
+
+  it("rejects cancel_appointment when the actor's doctor is suspended (M10)", async () => {
+    const doctor = await setupSuspendableDoctorWithHours();
+    const { data: booked, error: bookError } = await admin.rpc(
+      "book_appointment",
+      bookingArgs(doctor, "2030-01-08T10:00:00Z"),
+    );
+    if (bookError) throw new Error(`book_appointment failed: ${bookError.message}`);
+    await suspend(doctor.doctorId);
+
+    const { error } = await admin.rpc("cancel_appointment", {
+      p_appointment_id: booked.id,
+      p_actor_user_id: doctor.user.id,
+    });
+    expect(error).not.toBeNull();
+    expect(error?.code).toBe("42501");
+  });
+
+  it("rejects reschedule_appointment when the actor's doctor is suspended (M10)", async () => {
+    const doctor = await setupSuspendableDoctorWithHours();
+    const { data: booked, error: bookError } = await admin.rpc(
+      "book_appointment",
+      bookingArgs(doctor, "2030-01-08T11:00:00Z"),
+    );
+    if (bookError) throw new Error(`book_appointment failed: ${bookError.message}`);
+    await suspend(doctor.doctorId);
+
+    const { error } = await admin.rpc("reschedule_appointment", {
+      p_appointment_id: booked.id,
+      p_new_starts_at: "2030-01-08T12:00:00Z",
+      p_actor_user_id: doctor.user.id,
+    });
+    expect(error).not.toBeNull();
+    expect(error?.code).toBe("42501");
+  });
+
+  it("rejects record_appointment_outcome when the actor's doctor is suspended (M10)", async () => {
+    const doctor = await setupSuspendableDoctorWithHours();
+    const { data: booked, error: bookError } = await admin.rpc(
+      "book_appointment",
+      bookingArgs(doctor, "2030-01-08T13:00:00Z"),
+    );
+    if (bookError) throw new Error(`book_appointment failed: ${bookError.message}`);
+    await suspend(doctor.doctorId);
+
+    const { error } = await admin.rpc("record_appointment_outcome", {
+      p_appointment_id: booked.id,
+      p_actor_user_id: doctor.user.id,
+      p_outcome: "completed",
+    });
+    expect(error).not.toBeNull();
+    expect(error?.code).toBe("42501");
+  });
+
   it("denies anon/authenticated execute on redeem_management_token", async () => {
     const redeemArgs = {
       p_token_hash: sha256("never-issued"),

@@ -105,6 +105,74 @@ describe("RLS", () => {
     expect(data).toHaveLength(0);
   });
 
+  it("hides a suspended doctor's profile from anon, even though it was published (M10)", async () => {
+    const suspended = await createDoctorFixture(admin, { isPublished: true });
+    userIds.push(suspended.user.id);
+    const { error: suspendError } = await admin
+      .from("doctors")
+      .update({ suspended_at: new Date().toISOString(), is_published: false })
+      .eq("id", suspended.doctorId);
+    if (suspendError) throw new Error(`failed to suspend doctor: ${suspendError.message}`);
+
+    const anon = createAnonClient();
+    const { data, error } = await anon.from("doctors").select().eq("id", suspended.doctorId).maybeSingle();
+    expect(error).toBeNull();
+    expect(data).toBeNull();
+  });
+
+  it("no longer lets a suspended doctor read their own row at all -- stronger than merely unpublished (M10)", async () => {
+    const suspended = await createDoctorFixture(admin, { isPublished: true });
+    userIds.push(suspended.user.id);
+    const { error: suspendError } = await admin
+      .from("doctors")
+      .update({ suspended_at: new Date().toISOString(), is_published: false })
+      .eq("id", suspended.doctorId);
+    if (suspendError) throw new Error(`failed to suspend doctor: ${suspendError.message}`);
+
+    const { data, error } = await suspended.client
+      .from("doctors")
+      .select()
+      .eq("id", suspended.doctorId)
+      .maybeSingle();
+    expect(error).toBeNull();
+    expect(data).toBeNull();
+  });
+
+  it("no longer lets a suspended doctor's secretary read the doctor's working_hours (M10)", async () => {
+    const suspended = await createDoctorFixture(admin, { isPublished: true });
+    userIds.push(suspended.user.id);
+    const secretary = await createSecretaryFixture(admin, suspended.doctorId);
+    userIds.push(secretary.user.id);
+    await admin.from("working_hours").insert({
+      doctor_id: suspended.doctorId,
+      clinic_id: suspended.clinicId,
+      day_of_week: 1,
+      start_time: "09:00",
+      end_time: "17:00",
+    });
+    const { error: suspendError } = await admin
+      .from("doctors")
+      .update({ suspended_at: new Date().toISOString(), is_published: false })
+      .eq("id", suspended.doctorId);
+    if (suspendError) throw new Error(`failed to suspend doctor: ${suspendError.message}`);
+
+    const { data, error } = await secretary.client
+      .from("working_hours")
+      .select()
+      .eq("doctor_id", suspended.doctorId);
+    expect(error).toBeNull();
+    expect(data).toHaveLength(0);
+  });
+
+  it("denies UPDATE on doctors to authenticated entirely -- only the service role (via admin lib) may write (M10)", async () => {
+    const { error } = await doctorA.client
+      .from("doctors")
+      .update({ full_name: "Attempted self-edit" })
+      .eq("id", doctorA.doctorId);
+    expect(error).not.toBeNull();
+    expect(error?.code).toBe("42501");
+  });
+
   it("prevents a secretary from adding another secretary (doctor-only write)", async () => {
     const outsider = await createDoctorFixture(admin);
     userIds.push(outsider.user.id);

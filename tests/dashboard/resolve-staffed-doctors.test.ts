@@ -68,6 +68,54 @@ describe("resolveStaffedDoctors (M6)", () => {
     );
   });
 
+  it("excludes a suspended doctor from the owner path (M10)", async () => {
+    // Called with the doctor's own RLS-bound client, not the service-role
+    // `admin` client every other case in this file uses — this DI core has
+    // no suspension logic of its own (see its own doc comment: it relies on
+    // doctors_select's RLS policy when given an RLS-bound client, exactly
+    // what production's getStaffedDoctors() passes). A service-role call
+    // would bypass RLS entirely and prove nothing about this guarantee.
+    const doctor = await createDoctorFixture(admin);
+    userIds.push(doctor.user.id);
+    // Mirrors setDoctorSuspended's real invariant: suspended_at and
+    // is_published=false always land in the same write. Clearing only
+    // suspended_at would leave doctors_select's `is_published OR
+    // is_staff_for_doctor(...)` RLS policy still passing via the
+    // is_published branch -- is_staff_for_doctor itself doesn't consult
+    // is_published at all.
+    const { error } = await admin
+      .from("doctors")
+      .update({ suspended_at: new Date().toISOString(), is_published: false })
+      .eq("id", doctor.doctorId);
+    if (error) throw new Error(`failed to suspend doctor: ${error.message}`);
+
+    const result = await resolveStaffedDoctors(doctor.client, doctor.user.id);
+
+    expect(result).toEqual([]);
+  });
+
+  it("excludes a suspended doctor from the secretary path (M10)", async () => {
+    const doctor = await createDoctorFixture(admin);
+    userIds.push(doctor.user.id);
+    const secretary = await createSecretaryFixture(admin, doctor.doctorId);
+    userIds.push(secretary.user.id);
+    // Mirrors setDoctorSuspended's real invariant: suspended_at and
+    // is_published=false always land in the same write. Clearing only
+    // suspended_at would leave doctors_select's `is_published OR
+    // is_staff_for_doctor(...)` RLS policy still passing via the
+    // is_published branch -- is_staff_for_doctor itself doesn't consult
+    // is_published at all.
+    const { error } = await admin
+      .from("doctors")
+      .update({ suspended_at: new Date().toISOString(), is_published: false })
+      .eq("id", doctor.doctorId);
+    if (error) throw new Error(`failed to suspend doctor: ${error.message}`);
+
+    const result = await resolveStaffedDoctors(secretary.client, secretary.user.id);
+
+    expect(result).toEqual([]);
+  });
+
   it("never returns an unrelated published doctor for a user with no staff relationship", async () => {
     // Regression guard for the exact bug this DI core was written to avoid:
     // a bare `select * from doctors` would also return every published

@@ -557,42 +557,54 @@ export type Database = {
         Row: {
           bio: string | null
           created_at: string
+          custom_template_key: string | null
           default_locale: string
+          deleted_at: string | null
           full_name: string
           id: string
           is_published: boolean
           min_booking_notice_minutes: number
+          page_variant: string
           phone: string | null
           slug: string
           specialty_id: string
+          suspended_at: string | null
           timezone: string
           user_id: string
         }
         Insert: {
           bio?: string | null
           created_at?: string
+          custom_template_key?: string | null
           default_locale: string
+          deleted_at?: string | null
           full_name: string
           id?: string
           is_published?: boolean
           min_booking_notice_minutes?: number
+          page_variant?: string
           phone?: string | null
           slug: string
           specialty_id: string
+          suspended_at?: string | null
           timezone: string
           user_id: string
         }
         Update: {
           bio?: string | null
           created_at?: string
+          custom_template_key?: string | null
           default_locale?: string
+          deleted_at?: string | null
           full_name?: string
           id?: string
           is_published?: boolean
           min_booking_notice_minutes?: number
+          page_variant?: string
           phone?: string | null
           slug?: string
           specialty_id?: string
+          suspended_at?: string | null
           timezone?: string
           user_id?: string
         }

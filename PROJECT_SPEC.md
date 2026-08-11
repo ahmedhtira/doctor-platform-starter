@@ -45,7 +45,7 @@ change, update this file in the same change — don't let it go stale again.
   hazard M4 flagged ("a naive retry-on-failure email sender could
   accumulate unlimited valid tokens for one appointment"). See
   "Transactional email delivery (M7)" below.
-- **M8** (this milestone): appointment outcome recording — staff mark a
+- **M8** (done): appointment outcome recording — staff mark a
   past `confirmed` appointment `completed` or `no_show` via the new
   `public.record_appointment_outcome` function. A staff/secretary-
   management milestone was drafted and then explicitly cancelled as a
@@ -54,12 +54,25 @@ change, update this file in the same change — don't let it go stale again.
   `src/lib/dashboard/auth-context.ts`/`resolve-staffed-doctors.ts` are
   untouched by M8 and stay as M6 left them. See "Appointment outcomes
   (M8)" below.
-- **M9** (this milestone): launch readiness and production deployment
+- **M9** (done): launch readiness and production deployment
   preparation — an audit-then-fix milestone, not a feature milestone. No
   hosted Supabase project touched, nothing deployed. See "Launch
   readiness (M9)" below and [`DEPLOYMENT.md`](DEPLOYMENT.md) for the
   actual runbooks/checklists.
-- **M10+**: not started. Don't infer scope for it from this file.
+- **M10** (this milestone): platform-admin doctor provisioning — closes
+  the gap M9 explicitly left open (no way to onboard a real doctor
+  except a dev seed script). One platform admin, authorized by
+  `auth.users.id` not email, gets a private `/admin` console to create/
+  edit/publish/suspend/delete doctors; a doctor never has or is told a
+  password — they're invited by email and choose their own via
+  Supabase Auth's link-based invite/recovery flow. Suspension is
+  immediate and comprehensive (RLS-level, not just hidden UI); delete is
+  history-preserving unless a doctor genuinely has no history to
+  preserve. Also adds a code-registered custom-page-template mechanism
+  for doctors who want bespoke design without leaving the platform's
+  booking/security model. No hosted Supabase project touched. See
+  "Platform admin & doctor provisioning (M10)" below.
+- **M11+**: not started. Don't infer scope for it from this file.
 
 ## Product model
 
@@ -140,13 +153,25 @@ tables to `anon`/`authenticated` (`auto_expose_new_tables` is unset in
 explicit `GRANT` in its migration — don't assume a new table is reachable
 without one.
 
+**Platform-admin authorization is by `auth.users.id`, not email (M10).**
+`PLATFORM_ADMIN_USER_ID` (env var) is compared against the authenticated
+caller's immutable `id`; email is displayed in the admin UI but is never
+the authorization credential, since it isn't stable. `doctors` has **no**
+client-writable columns at all as of M10 — `doctors_update_own` was
+dropped and `UPDATE` revoked from `authenticated` entirely, rather than
+narrowed to an allow-list that a future admin-only column (like
+`suspended_at`) could accidentally miss. Every doctor write goes through
+`src/lib/admin/*.ts`, called only from `requirePlatformAdmin()`-gated
+Server Actions using `createServiceRoleClient()`. See "Platform admin &
+doctor provisioning (M10)" below.
+
 ## Schema
 
 | Table | Purpose |
 | --- | --- |
 | `supported_locales` | fr/ar lookup (matches `next-intl` routing) |
 | `specialties` | bilingual specialty lookup |
-| `doctors` | `id` (internal PK) separate from `user_id` (→ `auth.users`); `timezone`, `is_published`, `min_booking_notice_minutes` |
+| `doctors` | `id` (internal PK) separate from `user_id` (→ `auth.users`); `timezone`, `is_published`, `min_booking_notice_minutes`; since M10: `suspended_at`/`deleted_at` (nullable timestamps, not booleans — matches this schema's existing timestamp-based-status precedent), `page_variant` (`standard`\|`custom`), `custom_template_key` (nullable, code-registry lookup key, never stored HTML) |
 | `clinics` | `doctor_id` FK, own `timezone`, nullable `city` (added in M2.5 for search filtering — nullable so it's additive to already-tested M1 fixtures/functions, not a breaking change); `UNIQUE(doctor_id, id)` for composite FKs |
 | `doctor_secretaries` | M2M junction, `(doctor_id, secretary_user_id)` PK |
 | `appointment_types` | `doctor_id` FK, `duration_minutes`; `UNIQUE(doctor_id, id)` |
@@ -164,12 +189,16 @@ without one.
 ## Functions
 
 - `private.is_doctor_owner`, `private.is_staff_for_doctor` — RLS helpers.
+  Since M10, both also require `doctors.suspended_at is null` — the
+  single choke point that makes suspension immediate and comprehensive
+  across nearly every staff-scoped RLS policy and privileged function at
+  once. See "Platform admin & doctor provisioning (M10)".
 - `public.compute_available_slots(doctor_id, clinic_id, appointment_type_id, local_date, now)` — derives bookable slots from exceptions → working hours → breaks → blocked periods → existing confirmed appointments → minimum booking notice. `now` is a parameter (not `now()`) so lead-time behavior is deterministic in tests.
 - `private.is_within_working_window(doctor_id, clinic_id, starts_at, ends_at, now)` — the same exceptions/working-hours/breaks/blocked-periods resolution as `compute_available_slots`, **plus** the same minimum-booking-notice check, as a single boolean check for one candidate range. `now` was added in M4 after a real gap was found: this function originally checked only the schedule (working hours/breaks/blocked/exceptions), never past-ness or notice — only the *read* path (`compute_available_slots`) enforced notice, so a write could accept a past or too-soon `starts_at`. `book_appointment`/`reschedule_appointment` pass `now()` at their call sites; the parameter exists (rather than reading `now()` internally) so the function stays consistent with the rest of the schedule-resolution logic's testable-parameter style. Internal-only (revoked from every role, including `service_role`) — only ever called from within those two `SECURITY DEFINER` functions, which already run as the definer.
-- `public.book_appointment`, `public.cancel_appointment`, `public.reschedule_appointment` — the only way to mutate `appointments`. Both `cancel_appointment` and `reschedule_appointment` require the appointment's current status to be `confirmed` (errcode `55000` otherwise) — repeat cancellation/reschedule of an already-cancelled/completed/no_show appointment is rejected, not silently re-applied. Each takes either `p_actor_user_id` (staff path) or `p_management_session_secret_hash` (patient path, renamed from `p_management_session_id` in M5 — see "Patient self-service (M5)"); `reschedule_appointment` also invalidates (`used_at = now()`) any outstanding management tokens for that appointment on a successful reschedule, and can atomically issue a replacement via an optional `p_new_management_token_hash`. Since M7, all three build a full display-data snapshot (doctor/clinic/appointment-type names, patient name, `starts_at`/`ends_at`) into the `email_outbox.payload` they enqueue, joining `doctors`/`clinics`/`appointment_types` at enqueue time — body-only changes, no signature changes. See "Transactional email delivery (M7)".
+- `public.book_appointment`, `public.cancel_appointment`, `public.reschedule_appointment` — the only way to mutate `appointments`. Both `cancel_appointment` and `reschedule_appointment` require the appointment's current status to be `confirmed` (errcode `55000` otherwise) — repeat cancellation/reschedule of an already-cancelled/completed/no_show appointment is rejected, not silently re-applied. Each takes either `p_actor_user_id` (staff path) or `p_management_session_secret_hash` (patient path, renamed from `p_management_session_id` in M5 — see "Patient self-service (M5)"); `reschedule_appointment` also invalidates (`used_at = now()`) any outstanding management tokens for that appointment on a successful reschedule, and can atomically issue a replacement via an optional `p_new_management_token_hash`. Since M7, all three build a full display-data snapshot (doctor/clinic/appointment-type names, patient name, `starts_at`/`ends_at`) into the `email_outbox.payload` they enqueue, joining `doctors`/`clinics`/`appointment_types` at enqueue time — body-only changes, no signature changes. See "Transactional email delivery (M7)". Since M10: `book_appointment` explicitly rejects a suspended doctor (errcode `42501`, since `service_role` bypasses RLS and needs its own check); `cancel_appointment`/`reschedule_appointment` were refactored to call the shared `private.is_staff_for_doctor(...)` instead of duplicating the same two-branch `exists` check inline — a dedup that also inherits the suspension-awareness fix for free.
 - `public.create_management_token`, `public.redeem_management_token` — token issuance/redemption, hash-only. `redeem_management_token` uses one generic error (`42501`, "invalid or expired token") for an unknown, expired, already-used, or reschedule-invalidated token — it never reveals which case applies. Since M5, also takes `p_session_secret_hash` and stores it on the created session (see "Patient self-service (M5)"). Since M7, also takes an optional `p_email_outbox_id`; when non-null, the insert becomes an upsert keyed on `appointment_management_tokens`'s `unique (email_outbox_id)` constraint rather than a plain insert — see "Transactional email delivery (M7)".
 - `public.claim_email_outbox_batch(p_limit, p_max_attempts, p_claim_token, p_stale_after_minutes default 10)` — M7. Leases a batch of `email_outbox` rows (`pending`, or `processing` past `p_stale_after_minutes` — crashed-worker recovery) via `for update skip locked`, stamping `claim_token`/`processing_started_at` and incrementing `attempts`. See "Transactional email delivery (M7)".
-- `public.record_appointment_outcome(p_appointment_id, p_actor_user_id, p_outcome)` — M8. Staff-only (no patient path — `p_actor_user_id` is required, not optional); transitions a `confirmed` appointment to `completed` or `no_show`. Locks the row (`select ... for update`) before any precondition check, not just before the write, so a concurrent conflicting request re-reads the post-commit row instead of racing the check-then-act sequence. Requires `ends_at <= now()`, errcode `55002` otherwise. See "Appointment outcomes (M8)".
+- `public.record_appointment_outcome(p_appointment_id, p_actor_user_id, p_outcome)` — M8. Staff-only (no patient path — `p_actor_user_id` is required, not optional); transitions a `confirmed` appointment to `completed` or `no_show`. Locks the row (`select ... for update`) before any precondition check, not just before the write, so a concurrent conflicting request re-reads the post-commit row instead of racing the check-then-act sequence. Requires `ends_at <= now()`, errcode `55002` otherwise. See "Appointment outcomes (M8)". Since M10, also refactored onto the shared `private.is_staff_for_doctor(...)` authorization check (was a duplicated inline `exists`), inheriting suspension-awareness the same way `cancel_appointment`/`reschedule_appointment` did.
 
 All seven `public` functions above: `service_role` execute only.
 
@@ -728,11 +757,138 @@ error-monitoring SaaS was considered and deferred as unnecessary at pilot
 scale — a call to make again once usage grows past comfortable log
 tailing, not resolved here.
 
+## Platform admin & doctor provisioning (M10)
+
+M9 left one gap open on purpose: there was no production-safe way to
+create a doctor account at all, only `scripts/seed-doctor.ts` (dev/demo
+fixture data, a placeholder password, never meant for real onboarding).
+M10 closes it with a private admin console, not public signup — this
+product has exactly one platform admin, and only they can add, edit,
+publish, suspend, or delete a doctor.
+
+**Admin identity is `auth.users.id`, not email.** `PLATFORM_ADMIN_USER_ID`
+(env var) is compared against `getAuthenticatedUser().id` in
+`src/lib/admin/is-platform-admin.ts` (`isPlatformAdminUserId`, a pure,
+testable seam kept separate from `auth-context.ts` for the same reason
+`resolve-staffed-doctors.ts` is split from `requireDoctorContext()`) —
+see "Security model" above. The admin's own `auth.users` row is
+bootstrapped once, out-of-band (Supabase Studio, or a one-off admin API
+call — see `DEPLOYMENT.md`); there is no "create the first admin" UI.
+`requirePlatformAdmin()` collapses "authenticated but not the admin" into
+the exact same `/login` redirect as "not authenticated," mirroring how
+`requireDoctorContext()` already collapses "zero staffed doctors."
+
+**A doctor is never given, and the admin never learns, a password.**
+Creating a doctor calls Supabase Auth's `admin.generateLink({type:
+"invite", ...})`, which creates/updates the underlying `auth.users` row
+and returns a redeemable action link **without sending Supabase's own
+email** — that's the mechanism the whole design depends on. The app
+renders its own branded email and sends it through the existing M7
+Resend sender, and the doctor picks their own password by following the
+link. Forgot-password (`/forgot-password`) uses the same mechanism with
+`type: "recovery"`, and follows `loginAction`'s established non-
+enumeration discipline: `requestPasswordResetAction` always returns the
+same generic success result, whether or not the email matched a real
+account or the send itself succeeded — a genuine failure is only visible
+server-side (`console.error`), matching M9's logging stance.
+
+**The raw action link is a bearer credential and is never persisted or
+logged — not even in `email_outbox`.** This app's existing principle
+that raw management tokens never reach Postgres (see "Security model")
+extends directly to it. `src/lib/email/render-account-email.ts`/
+`send-account-email.ts` are a small, deliberately separate path from M7's
+`render-outbox-email.ts`/`email_outbox` — the link lives only as a local
+variable for one request, handed straight to the Resend sender, and is
+sent **synchronously, in that same request**, never enqueued. This also
+sidesteps the once-daily-cron hazard a Hobby-tier deployment would
+otherwise create: a password-reset email cannot wait up to 24 hours.
+Appointment confirmation/cancellation/reschedule email is completely
+unaffected — it keeps using the M7 outbox exactly as before.
+`tests/admin/account-email-security.test.ts` proves the link never
+appears in `doctors`/`audit_log`/`email_outbox`, that the send happens
+before the admin action returns (no outbox drain needed), and that a
+send failure rolls back everything else — see below.
+
+**No new privileged SQL function for provisioning, unlike
+`book_appointment`.** Creating a doctor is low-frequency, human-
+supervised, single-trusted-actor work, not high-frequency/adversarial/
+concurrent like booking — a plain `service_role` saga
+(`src/lib/admin/provision-doctor.ts`) is sufficient. It creates the auth
+user (via `generateLink`), then `doctors`/`clinics`/`appointment_types`/
+`working_hours`/`audit_log` rows, then sends the invite email; **any**
+failure along the way — including the email send itself failing —
+triggers a compensating rollback (delete the `doctors` row, then the
+orphaned auth user). One real gap this surfaced during testing: because
+`generateLink` does *not* error for an email that already belongs to a
+confirmed account (it succeeds and returns the existing user, rather than
+raising `email_exists`), provisioning now checks for an existing
+`doctors` row on that returned user id **before** any write — without
+that check, re-inviting an already-registered doctor's email would reach
+the `doctors_user_id_key` unique-constraint conflict, and the
+same-user-id compensating rollback would have deleted that *other*,
+unrelated doctor's real account.
+
+**Suspend: instant and comprehensive, not just hidden dashboard pages.**
+The two RLS helpers `private.is_doctor_owner`/`is_staff_for_doctor` both
+gained `and suspended_at is null`, closing the entire staff-facing RLS
+surface (`clinics`, `appointment_types`, `working_hours`, `breaks`,
+`blocked_periods`, `schedule_exceptions`, `doctor_secretaries`, the
+profile-content tables, and `doctors_select` itself) in one place.
+`book_appointment` gets its own explicit check (it runs as `service_role`
+and bypasses RLS entirely, so the RLS fix alone wouldn't stop a forged
+booking against a suspended doctor). The Supabase Auth account itself is
+**not** touched by suspend — every access path is already blocked at the
+data layer, and reactivate needing to un-ban an account would add
+complexity for no real benefit here. Reactivating clears `suspended_at`
+only; it deliberately does not auto-restore `is_published`, so going
+back live is always a separate, deliberate re-publish step.
+
+**Delete: admin-confirmed, history-preserving unless there's genuinely no
+history.** A literal `delete from doctors` would cascade-destroy every
+past appointment for any doctor who was ever booked
+(`appointments.doctor_id references doctors(id) on delete cascade`) —
+directly contradicting "preserve historical data." `deleteDoctor`
+(`src/lib/admin/delete-doctor.ts`) checks first: a doctor with **zero**
+appointments is genuinely hard-deleted (cascades cleanly, auth user
+actually deleted). A doctor with **any** appointment history is instead
+soft-deleted in place: `suspended_at`/`deleted_at` both set (full
+suspend-lockout applies immediately; `deleted_at` is a separate, terminal
+marker — a soft-deleted doctor isn't offered the casual "reactivate"
+action a merely-suspended one is), `bio`/`phone` scrubbed, every
+genuinely-leaf child table removed (`doctor_qualifications`,
+`doctor_publications`, `doctor_books`, `doctor_media_appearances`,
+`doctor_secretaries`, `working_hours`, `breaks`, `blocked_periods`,
+`schedule_exceptions`), `clinics`/`appointment_types` deliberately left
+alone (Postgres itself refuses to delete them while any appointment still
+references them — their composite FK from `appointments` has no `ON
+DELETE` clause, defaulting to `NO ACTION`), and the Auth account is
+**banned** (`ban_duration: "876000h"`, ~100 years) rather than deleted —
+`deleteUser()` would cascade-delete the very `doctors` row this whole
+path exists to preserve. The admin UI requires typing the doctor's full
+name to confirm before either path runs.
+
+**Custom page variants: a code registry, not a page builder.** Doctors
+who want bespoke design still render at the same canonical
+`/doctors/[slug]` URL, with the same booking widget, availability engine,
+and security model — no `custom_page_url`, no external redirect, no
+stored HTML/JS. `doctors.page_variant` (`standard`\|`custom`) and
+`custom_template_key` (nullable) are admin-managed metadata only;
+`src/components/doctors/templates/registry.ts` maps a
+`custom_template_key` to a React component the platform admin adds to
+the codebase (`dr-amira-premium.tsx` is a placeholder proving the
+mechanism, not real design). `resolveDoctorTemplate` never throws — an
+invalid, unregistered, or missing key silently falls back to
+`StandardDoctorPage`, so a data-entry mistake degrades gracefully instead
+of crashing or 404ing.
+
 ## Local-only guardrail
 
-Nothing in M1–M8 touches a hosted Supabase project. Local migrations
+Nothing in M1–M10 touches a hosted Supabase project. Local migrations
 apply only via `supabase db reset` against the local Docker stack; tests
 read `TEST_SUPABASE_*` env vars pointed at `127.0.0.1` from a gitignored
-`.env.test.local`, never `.env.local`. M9 adds a deployment *runbook*
+`.env.test.local`, never `.env.local`. M9 added a deployment *runbook*
 (`DEPLOYMENT.md`) for a future hosted project — writing that runbook did
-not itself touch or create one; this guardrail held throughout M9 too.
+not itself touch or create one. M10 extended that runbook (admin
+bootstrap, hosted Auth redirect-URL/link-expiry config) but, like M9,
+never executed anything against a hosted project — this guardrail held
+throughout M10 too.

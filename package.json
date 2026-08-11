@@ -18,6 +18,7 @@
     "test:booking": "vitest run --config vitest.config.booking.ts",
     "test:dashboard": "vitest run --config vitest.config.dashboard.ts",
     "test:email": "vitest run --config vitest.config.email.ts",
+    "test:admin": "vitest run --config vitest.config.admin.ts",
     "db:start": "supabase start",
     "db:stop": "supabase stop",
     "db:reset": "supabase db reset",

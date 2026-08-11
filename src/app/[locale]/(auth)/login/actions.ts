@@ -4,6 +4,7 @@ import { z } from "zod";
 import { getLocale } from "next-intl/server";
 import { redirect } from "@/i18n/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { resolvePostAuthRedirectHref } from "@/lib/admin/post-auth-redirect";
 
 // Server Action — the only place client code touches Supabase Auth for the
 // staff login flow. One generic error message regardless of cause (wrong
@@ -25,7 +26,7 @@ export async function loginAction(input: unknown): Promise<LoginResult> {
   }
 
   const supabase = await createClient();
-  const { error } = await supabase.auth.signInWithPassword({
+  const { data, error } = await supabase.auth.signInWithPassword({
     email: parsed.data.email,
     password: parsed.data.password,
   });
@@ -34,5 +35,8 @@ export async function loginAction(input: unknown): Promise<LoginResult> {
     return { success: false, message: "INVALID_CREDENTIALS" };
   }
 
-  return redirect({ href: "/dashboard", locale: await getLocale() });
+  return redirect({
+    href: resolvePostAuthRedirectHref(data.user?.id),
+    locale: await getLocale(),
+  });
 }

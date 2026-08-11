@@ -6,13 +6,14 @@ import type { MetadataRoute } from "next";
 // /manage already carries its own X-Robots-Tag/noindex header
 // (next.config.ts) for defense in depth; disallowing it here too stops
 // well-behaved crawlers before they even fetch it. No sitemap entry:
-// none exists in this repo, out of M9 scope.
+// none exists in this repo, out of M9 scope. M10 adds /admin (the
+// platform-admin console) and /auth (invite/reset link redemption).
 export default function robots(): MetadataRoute.Robots {
   return {
     rules: {
       userAgent: "*",
       allow: "/",
-      disallow: ["/*/login", "/*/dashboard", "/*/manage"],
+      disallow: ["/*/login", "/*/dashboard", "/*/manage", "/*/admin", "/*/auth"],
     },
   };
 }

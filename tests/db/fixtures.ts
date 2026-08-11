@@ -61,6 +61,7 @@ export interface DoctorFixture {
   user: { id: string; email: string };
   client: SupabaseClient;
   doctorId: string;
+  slug: string;
   clinicId: string;
   appointmentTypeId: string;
 }
@@ -71,6 +72,8 @@ export async function createDoctorFixture(
     timezone?: string;
     isPublished?: boolean;
     minBookingNoticeMinutes?: number;
+    pageVariant?: "standard" | "custom";
+    customTemplateKey?: string | null;
   } = {},
 ): Promise<DoctorFixture> {
   const user = await createTestUser(admin, "doctor");
@@ -87,6 +90,8 @@ export async function createDoctorFixture(
       timezone: opts.timezone ?? "Africa/Tunis",
       is_published: opts.isPublished ?? true,
       min_booking_notice_minutes: opts.minBookingNoticeMinutes ?? 60,
+      page_variant: opts.pageVariant ?? "standard",
+      custom_template_key: opts.customTemplateKey ?? null,
     })
     .select()
     .single();
@@ -117,6 +122,7 @@ export async function createDoctorFixture(
     user: { id: user.id, email: user.email! },
     client,
     doctorId: doctor.id as string,
+    slug: doctor.slug as string,
     clinicId: clinic.id as string,
     appointmentTypeId: appointmentType.id as string,
   };
