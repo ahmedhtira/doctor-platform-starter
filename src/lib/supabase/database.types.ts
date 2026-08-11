@@ -746,6 +746,38 @@ export type Database = {
         }
         Relationships: []
       }
+      specialty_aliases: {
+        Row: {
+          alias: string
+          created_at: string
+          id: string
+          locale: string
+          specialty_id: string
+        }
+        Insert: {
+          alias: string
+          created_at?: string
+          id?: string
+          locale: string
+          specialty_id: string
+        }
+        Update: {
+          alias?: string
+          created_at?: string
+          id?: string
+          locale?: string
+          specialty_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "specialty_aliases_specialty_id_fkey"
+            columns: ["specialty_id"]
+            isOneToOne: false
+            referencedRelation: "specialties"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       supported_locales: {
         Row: {
           code: string

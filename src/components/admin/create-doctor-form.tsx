@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { createDoctorAction } from "@/app/[locale]/(admin)/admin/actions";
+import { deriveDoctorSlugSuggestion } from "@/lib/utils";
 
 type Specialty = { id: string; name_fr: string; name_ar: string };
 
@@ -47,6 +48,7 @@ export function CreateDoctorForm({
   const [fullName, setFullName] = useState("");
   const [specialtyId, setSpecialtyId] = useState(specialties[0]?.id ?? "");
   const [slug, setSlug] = useState("");
+  const [slugManuallyEdited, setSlugManuallyEdited] = useState(false);
   const [locale, setLocale] = useState(defaultLocale === "ar" ? "ar" : "fr");
   const [timezone, setTimezone] = useState("Africa/Tunis");
   const [bio, setBio] = useState("");
@@ -67,6 +69,21 @@ export function CreateDoctorForm({
 
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+
+  function handleFullNameChange(value: string) {
+    setFullName(value);
+    // Auto-suggest the slug from the name, but only until the admin
+    // touches the slug field themselves -- once they have, their edit
+    // wins and typing more of the name never overwrites it again.
+    if (!slugManuallyEdited) {
+      setSlug(deriveDoctorSlugSuggestion(value));
+    }
+  }
+
+  function handleSlugChange(value: string) {
+    setSlug(value);
+    setSlugManuallyEdited(true);
+  }
 
   function toggleDay(day: number) {
     setWorkingDays((current) =>
@@ -116,7 +133,12 @@ export function CreateDoctorForm({
         </div>
         <div className="flex flex-col gap-2">
           <Label htmlFor="fullName">{t("fullNameLabel")}</Label>
-          <Input id="fullName" required value={fullName} onChange={(e) => setFullName(e.target.value)} />
+          <Input
+            id="fullName"
+            required
+            value={fullName}
+            onChange={(e) => handleFullNameChange(e.target.value)}
+          />
         </div>
         <div className="flex flex-col gap-2">
           <Label htmlFor="specialty">{t("specialtyLabel")}</Label>
@@ -141,8 +163,13 @@ export function CreateDoctorForm({
             required
             pattern="[a-z0-9]+(-[a-z0-9]+)*"
             value={slug}
-            onChange={(e) => setSlug(e.target.value)}
+            onChange={(e) => handleSlugChange(e.target.value)}
           />
+          {slug ? (
+            <p className="text-muted-foreground text-xs">
+              {t("slugPreviewLabel")} /{locale}/doctors/{slug}
+            </p>
+          ) : null}
         </div>
         <div className="flex flex-col gap-2">
           <Label htmlFor="phone">{t("phoneLabel")}</Label>

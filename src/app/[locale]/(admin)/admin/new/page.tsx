@@ -1,6 +1,7 @@
 import { getTranslations } from "next-intl/server";
 import { requirePlatformAdmin } from "@/lib/admin/auth-context";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
+import { listSpecialties } from "@/lib/specialties/list-specialties";
 import { CreateDoctorForm } from "@/components/admin/create-doctor-form";
 
 export default async function AdminNewDoctorPage({ params }: { params: Promise<{ locale: string }> }) {
@@ -8,13 +9,7 @@ export default async function AdminNewDoctorPage({ params }: { params: Promise<{
   const { locale } = await params;
 
   const supabase = createServiceRoleClient();
-  const { data: specialties, error } = await supabase
-    .from("specialties")
-    .select("id, name_fr, name_ar")
-    .order("name_fr");
-  if (error) {
-    throw new Error(`Failed to load specialties: ${error.message}`);
-  }
+  const specialties = await listSpecialties(supabase);
 
   const t = await getTranslations("admin");
 

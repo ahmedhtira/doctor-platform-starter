@@ -14,17 +14,21 @@ export function DoctorSearchFilters({
   cityOptions,
   selectedSpecialty,
   selectedCity,
+  selectedQuery,
   labels,
 }: {
   specialtyOptions: FilterOption[];
   cityOptions: FilterOption[];
   selectedSpecialty?: string;
   selectedCity?: string;
+  selectedQuery?: string;
   labels: {
     specialtyLabel: string;
     specialtyAll: string;
     cityLabel: string;
     cityAll: string;
+    queryLabel: string;
+    queryPlaceholder: string;
     searchAction: string;
   };
 }) {
@@ -36,6 +40,20 @@ export function DoctorSearchFilters({
       method="get"
       className="bg-card ring-foreground/8 flex flex-col gap-4 rounded-xl p-4 shadow-sm ring-1 sm:flex-row sm:items-end sm:p-5"
     >
+      <div className="flex-1">
+        <label htmlFor="q" className="text-muted-foreground text-sm font-medium">
+          {labels.queryLabel}
+        </label>
+        <input
+          id="q"
+          name="q"
+          type="search"
+          defaultValue={selectedQuery ?? ""}
+          placeholder={labels.queryPlaceholder}
+          className={selectClassName}
+        />
+      </div>
+
       <div className="flex-1">
         <label htmlFor="specialty" className="text-muted-foreground text-sm font-medium">
           {labels.specialtyLabel}

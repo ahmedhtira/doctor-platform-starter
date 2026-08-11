@@ -11,6 +11,8 @@
   "home": {
     "title": "البحث عن طبيب",
     "description": "صفّ حسب الاختصاص والمدينة للعثور على الطبيب المناسب.",
+    "queryLabel": "البحث بكلمة مفتاحية",
+    "queryPlaceholder": "عرض، اختصاص… مثال: «قلب»، «أسنان»",
     "specialtyLabel": "الاختصاص",
     "specialtyAll": "جميع الاختصاصات",
     "cityLabel": "المدينة",
@@ -313,6 +315,7 @@
     "fullNameLabel": "الاسم الكامل",
     "specialtyLabel": "التخصص",
     "slugLabel": "معرّف الرابط (slug)",
+    "slugPreviewLabel": "الرابط العام:",
     "phoneLabel": "الهاتف",
     "bioLabel": "نبذة",
     "defaultLocaleLabel": "اللغة الافتراضية",

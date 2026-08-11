@@ -36,6 +36,26 @@ test("filtering by a non-matching city shows the empty state", async ({ page }) 
   await expect(page.getByText("Dr. Amira Ben Salah")).not.toBeVisible();
 });
 
+test("free-text keyword search resolves an everyday-wording alias to the matching specialty", async ({
+  page,
+}) => {
+  // "cœur" is a patient-friendly alias for cardiologie (migration
+  // 20260101000024), not the seeded doctor's formal specialty name —
+  // proves the search box does real alias resolution, not just a plain
+  // substring match against "Cardiologie" itself.
+  await page.goto("/fr?q=c%C5%93ur");
+
+  await expect(page.getByLabel("Recherche par mot-clé")).toHaveValue("cœur");
+  await expect(page.getByText("Dr. Amira Ben Salah")).toBeVisible();
+});
+
+test("free-text keyword search with no matching specialty shows the empty state", async ({ page }) => {
+  await page.goto("/fr?q=comptabilite");
+
+  await expect(page.getByText("Aucun médecin ne correspond à votre recherche.")).toBeVisible();
+  await expect(page.getByText("Dr. Amira Ben Salah")).not.toBeVisible();
+});
+
 test("patient header has no login link; staff portal is reachable only from the footer", async ({
   page,
 }) => {

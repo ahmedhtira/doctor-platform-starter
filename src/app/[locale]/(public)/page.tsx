@@ -1,5 +1,8 @@
 import { getTranslations } from "next-intl/server";
 import { createClient } from "@/lib/supabase/server";
+import { listSpecialties } from "@/lib/specialties/list-specialties";
+import { listSpecialtyAliases } from "@/lib/specialties/list-specialty-aliases";
+import { resolveSpecialtyFromQuery } from "@/lib/specialties/resolve-specialty-query";
 import {
   DoctorSearchFilters,
   type FilterOption,
@@ -11,7 +14,7 @@ import {
 
 export const dynamic = "force-dynamic";
 
-type SearchParams = { specialty?: string; city?: string };
+type SearchParams = { specialty?: string; city?: string; q?: string };
 
 // RLS-bound anon client, same as the doctor profile page — public search
 // reads exactly the same published-doctor rows a direct profile visit
@@ -26,21 +29,25 @@ export default async function HomePage({
   searchParams: Promise<SearchParams>;
 }) {
   const { locale } = await params;
-  const { specialty: selectedSpecialty, city: selectedCity } = await searchParams;
+  const { specialty: selectedSpecialty, city: selectedCity, q: selectedQuery } = await searchParams;
   const t = await getTranslations();
 
   const supabase = await createClient();
-  const { data, error } = await supabase
-    .from("doctors")
-    .select(
-      `
+  const [{ data, error }, specialties, specialtyAliases] = await Promise.all([
+    supabase
+      .from("doctors")
+      .select(
+        `
       slug, full_name,
       specialties ( slug, name_fr, name_ar ),
       clinics ( city )
     `,
-    )
-    .eq("is_published", true)
-    .order("full_name");
+      )
+      .eq("is_published", true)
+      .order("full_name"),
+    listSpecialties(supabase),
+    listSpecialtyAliases(supabase),
+  ]);
 
   if (error) {
     throw new Error(`Failed to load doctors: ${error.message}`);
@@ -48,19 +55,23 @@ export default async function HomePage({
 
   const doctors = data ?? [];
 
+  // A free-text query ("cœur", "dentiste", "généraliste") takes priority
+  // over the exact-match dropdown when both are somehow present — it's
+  // the more specific patient intent. An unresolved query (no known
+  // specialty/alias is a close enough match) filters to zero results,
+  // the same "searched, found nothing" behavior the city filter already
+  // has — it does not silently fall back to showing everyone.
+  const hasQuery = Boolean(selectedQuery?.trim());
+  const resolvedQuerySpecialtySlug = hasQuery
+    ? resolveSpecialtyFromQuery(selectedQuery!, specialties, specialtyAliases)
+    : null;
+
   const specialtyName = (specialty?: { name_fr: string; name_ar: string } | null) =>
     specialty ? (locale === "ar" ? specialty.name_ar : specialty.name_fr) : null;
 
-  const specialtyOptionsMap = new Map<string, string>();
   const cityOptionsSet = new Set<string>();
 
   for (const doctor of doctors) {
-    if (doctor.specialties) {
-      specialtyOptionsMap.set(
-        doctor.specialties.slug,
-        specialtyName(doctor.specialties) ?? doctor.specialties.slug,
-      );
-    }
     for (const clinic of doctor.clinics) {
       if (clinic.city) {
         cityOptionsSet.add(clinic.city);
@@ -68,8 +79,15 @@ export default async function HomePage({
     }
   }
 
-  const specialtyOptions: FilterOption[] = [...specialtyOptionsMap.entries()]
-    .map(([value, label]) => ({ value, label }))
+  // The full specialty catalog, not just specialties a published doctor
+  // currently has -- so the filter is populated (and a patient can browse
+  // it) even before any doctor with a given specialty is live yet. Same
+  // central public.specialties table the admin form's dropdown reads.
+  const specialtyOptions: FilterOption[] = specialties
+    .map((specialty) => ({
+      value: specialty.slug,
+      label: locale === "ar" ? specialty.name_ar : specialty.name_fr,
+    }))
     .sort((a, b) => a.label.localeCompare(b.label, locale));
 
   const cityOptions: FilterOption[] = [...cityOptionsSet]
@@ -77,7 +95,12 @@ export default async function HomePage({
     .map((city) => ({ value: city, label: city }));
 
   const results: DoctorSearchResult[] = doctors
-    .filter((doctor) => !selectedSpecialty || doctor.specialties?.slug === selectedSpecialty)
+    .filter((doctor) => {
+      if (hasQuery) {
+        return resolvedQuerySpecialtySlug !== null && doctor.specialties?.slug === resolvedQuerySpecialtySlug;
+      }
+      return !selectedSpecialty || doctor.specialties?.slug === selectedSpecialty;
+    })
     .filter((doctor) => !selectedCity || doctor.clinics.some((clinic) => clinic.city === selectedCity))
     .map((doctor) => ({
       slug: doctor.slug,
@@ -109,11 +132,14 @@ export default async function HomePage({
             cityOptions={cityOptions}
             selectedSpecialty={selectedSpecialty}
             selectedCity={selectedCity}
+            selectedQuery={selectedQuery}
             labels={{
               specialtyLabel: t("home.specialtyLabel"),
               specialtyAll: t("home.specialtyAll"),
               cityLabel: t("home.cityLabel"),
               cityAll: t("home.cityAll"),
+              queryLabel: t("home.queryLabel"),
+              queryPlaceholder: t("home.queryPlaceholder"),
               searchAction: t("home.searchAction"),
             }}
           />

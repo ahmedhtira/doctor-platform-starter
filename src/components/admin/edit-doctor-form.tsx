@@ -116,6 +116,11 @@ export function EditDoctorForm({
           value={slug}
           onChange={(e) => setSlug(e.target.value)}
         />
+        {slug ? (
+          <p className="text-muted-foreground text-xs">
+            {t("slugPreviewLabel")} /{defaultLocale}/doctors/{slug}
+          </p>
+        ) : null}
       </div>
       <div className="flex flex-col gap-2">
         <Label htmlFor="defaultLocale">{t("defaultLocaleLabel")}</Label>

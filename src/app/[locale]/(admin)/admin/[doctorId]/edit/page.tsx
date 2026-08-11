@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { getTranslations } from "next-intl/server";
 import { requirePlatformAdmin } from "@/lib/admin/auth-context";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
+import { listSpecialties } from "@/lib/specialties/list-specialties";
 import { EditDoctorForm } from "@/components/admin/edit-doctor-form";
 
 export default async function AdminEditDoctorPage({
@@ -13,14 +14,12 @@ export default async function AdminEditDoctorPage({
   const { locale, doctorId } = await params;
 
   const supabase = createServiceRoleClient();
-  const [{ data: doctor, error: doctorError }, { data: specialties, error: specialtiesError }] =
-    await Promise.all([
-      supabase.from("doctors").select("*").eq("id", doctorId).maybeSingle(),
-      supabase.from("specialties").select("id, name_fr, name_ar").order("name_fr"),
-    ]);
+  const [{ data: doctor, error: doctorError }, specialties] = await Promise.all([
+    supabase.from("doctors").select("*").eq("id", doctorId).maybeSingle(),
+    listSpecialties(supabase),
+  ]);
 
   if (doctorError) throw new Error(`Failed to load doctor: ${doctorError.message}`);
-  if (specialtiesError) throw new Error(`Failed to load specialties: ${specialtiesError.message}`);
   if (!doctor) notFound();
 
   const t = await getTranslations("admin");

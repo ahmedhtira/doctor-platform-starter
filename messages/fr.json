@@ -11,6 +11,8 @@
   "home": {
     "title": "Recherche de médecins",
     "description": "Filtrez par spécialité et par ville pour trouver le bon médecin.",
+    "queryLabel": "Recherche par mot-clé",
+    "queryPlaceholder": "Symptôme, spécialité… ex. « cœur », « dentiste »",
     "specialtyLabel": "Spécialité",
     "specialtyAll": "Toutes les spécialités",
     "cityLabel": "Ville",
@@ -313,6 +315,7 @@
     "fullNameLabel": "Nom complet",
     "specialtyLabel": "Spécialité",
     "slugLabel": "Identifiant d'URL (slug)",
+    "slugPreviewLabel": "URL publique :",
     "phoneLabel": "Téléphone",
     "bioLabel": "Biographie",
     "defaultLocaleLabel": "Langue par défaut",
