@@ -1,6 +1,7 @@
 {
   "common": {
-    "appName": "Plateforme Médecin",
+    "appName": "Dewini",
+    "tagline": "Votre rendez-vous médical, simplement.",
     "switchToFrench": "Français",
     "switchToArabic": "العربية"
   },
@@ -9,17 +10,40 @@
     "staffPortal": "Espace médecin"
   },
   "home": {
-    "title": "Recherche de médecins",
-    "description": "Filtrez par spécialité et par ville pour trouver le bon médecin.",
+    "title": "Trouvez le bon médecin. Réservez simplement.",
+    "description": "Recherchez par spécialité, symptôme ou ville et prenez rendez-vous en quelques minutes.",
     "queryLabel": "Recherche par mot-clé",
     "queryPlaceholder": "Symptôme, spécialité… ex. « cœur », « dentiste »",
     "specialtyLabel": "Spécialité",
     "specialtyAll": "Toutes les spécialités",
     "cityLabel": "Ville",
     "cityAll": "Toutes les villes",
-    "searchAction": "Rechercher",
+    "searchAction": "Trouver un médecin",
     "resultsEmpty": "Aucun médecin ne correspond à votre recherche.",
-    "viewProfile": "Voir le profil"
+    "marketplaceEmptyTitle": "Les premiers médecins arrivent sur Dewini",
+    "marketplaceEmptyDescription": "La plateforme est prête. Les premiers profils de médecins seront disponibles prochainement.",
+    "filteredEmptyTitle": "Aucun médecin ne correspond à ces critères",
+    "filteredEmptyDescription": "Essayez une autre spécialité, une autre ville ou effacez les filtres.",
+    "clearFilters": "Effacer les filtres",
+    "resultsEyebrow": "Résultats",
+    "resultsCount": "{count, plural, one {# médecin disponible} other {# médecins disponibles}}",
+    "viewProfile": "Voir le profil",
+    "trust": {
+      "label": "Points clés",
+      "noAccount": "Sans compte patient",
+      "bilingual": "Français et العربية",
+      "onlineBooking": "Réservation en ligne"
+    },
+    "howItWorks": {
+      "eyebrow": "Simple et rapide",
+      "title": "Votre rendez-vous en trois étapes",
+      "searchTitle": "Recherchez",
+      "searchDescription": "Indiquez une spécialité, un symptôme ou une ville pour trouver les médecins qui vous correspondent.",
+      "chooseTitle": "Choisissez",
+      "chooseDescription": "Consultez un profil clair, les informations du cabinet et les créneaux proposés.",
+      "bookTitle": "Réservez",
+      "bookDescription": "Choisissez votre horaire et confirmez votre rendez-vous sans créer de compte patient."
+    }
   },
   "login": {
     "title": "Connexion",
@@ -52,6 +76,7 @@
     "errorGeneric": "Une erreur est survenue. Veuillez réessayer."
   },
   "dashboard": {
+    "workspace": "Espace professionnel",
     "logout": "Se déconnecter",
     "nav": {
       "today": "Aujourd'hui",
@@ -59,15 +84,28 @@
       "availability": "Disponibilités",
       "profile": "Profil public",
       "staff": "Secrétaires",
+      "installApp": "Installer Dewini Pro",
+      "installAppDescription": "Ouvrir votre espace comme une application",
+      "installAppOpening": "Ouverture…",
       "switchDoctorLabel": "Médecin"
     },
     "today": {
-      "title": "Aujourd'hui"
+      "title": "Aujourd'hui",
+      "nextAppointment": "Prochain rendez-vous",
+      "scheduleTitle": "Programme du jour",
+      "scheduleDescription": "Tous les rendez-vous prévus aujourd'hui.",
+      "summary": {
+        "total": "Rendez-vous",
+        "remaining": "Restants",
+        "completed": "Terminés",
+        "attention": "Annulés / absences"
+      }
     },
     "calendar": {
       "title": "Calendrier",
       "previousWeek": "Semaine précédente",
-      "nextWeek": "Semaine suivante"
+      "nextWeek": "Semaine suivante",
+      "currentWeek": "Cette semaine"
     },
     "appointmentList": {
       "empty": "Aucun rendez-vous.",
@@ -115,6 +153,11 @@
     },
     "availability": {
       "title": "Disponibilités",
+      "description": "Visualisez votre semaine type et gérez les horaires, pauses et absences depuis un seul endroit.",
+      "weeklyOverviewTitle": "Aperçu de la semaine",
+      "noHours": "Non configuré",
+      "breakLabel": "Pauses",
+      "emptyConfigured": "Aucun élément configuré.",
       "noClinics": "Aucun cabinet n'est encore configuré pour ce médecin.",
       "workingHoursTitle": "Horaires de travail",
       "breaksTitle": "Pauses",
@@ -152,6 +195,12 @@
   },
   "booking": {
     "title": "Prendre rendez-vous",
+    "steps": {
+      "label": "Étapes de réservation",
+      "chooseSlot": "Créneau",
+      "yourDetails": "Vos informations",
+      "confirmation": "Confirmation"
+    },
     "clinicLabel": "Cabinet",
     "appointmentTypeLabel": "Type de consultation",
     "dateLabel": "Date",
@@ -172,8 +221,12 @@
     "confirmationDateLabel": "Date et heure",
     "confirmationClinicLabel": "Lieu",
     "confirmationPatientLabel": "Patient",
+    "addToCalendarAction": "Ajouter au calendrier",
+    "nextStepsTitle": "Et maintenant ?",
+    "nextStepsDescription": "Votre rendez-vous est enregistré. Conservez le lien de gestion ci-dessous pour pouvoir le modifier ou l'annuler.",
     "managementLinkTitle": "Gérer votre rendez-vous",
-    "managementLinkDescription": "Conservez ce lien pour consulter, annuler ou modifier votre rendez-vous plus tard."
+    "managementLinkDescription": "Ce lien est personnel. Conservez-le pour consulter, annuler ou modifier votre rendez-vous plus tard.",
+    "manageAppointmentAction": "Ouvrir la gestion du rendez-vous"
   },
   "manage": {
     "title": "Gérer mon rendez-vous",

@@ -35,6 +35,12 @@ const nextConfig: NextConfig = {
           { key: "X-Robots-Tag", value: "noindex, nofollow" },
         ],
       },
+      {
+        // Always let browsers check for a newer install helper. It is a
+        // network-only service worker and never caches patient/staff data.
+        source: "/dewini-pro-sw.js",
+        headers: [{ key: "Cache-Control", value: "no-cache, no-store, must-revalidate" }],
+      },
     ];
   },
 };
