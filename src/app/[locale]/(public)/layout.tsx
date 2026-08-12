@@ -14,8 +14,8 @@ export default function PublicLayout({ children }: { children: ReactNode }) {
   return (
     <>
       <header className="border-border/70 bg-background/85 sticky top-0 z-40 border-b backdrop-blur-md">
-        <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-3.5 sm:px-6">
-          <Link href="/" className="flex items-center">
+        <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3.5 sm:px-6">
+          <Link href="/" aria-label={t("nav.home")} className="flex items-center rounded-md">
             <Image
               src="/dewini-logo.png"
               alt="Dewini"
@@ -30,8 +30,12 @@ export default function PublicLayout({ children }: { children: ReactNode }) {
       </header>
       <main className="flex-1">{children}</main>
       <footer className="border-border/70 border-t">
-        <div className="mx-auto flex max-w-5xl flex-col items-center gap-2 px-4 py-6 text-sm sm:flex-row sm:justify-between sm:px-6">
-          <p className="text-muted-foreground">{t("common.appName")}</p>
+        <div className="mx-auto flex max-w-6xl flex-col items-center gap-2 px-4 py-6 text-center text-sm sm:flex-row sm:justify-between sm:px-6 sm:text-start">
+          <p className="text-muted-foreground">
+            <span className="text-foreground font-semibold">{t("common.appName")}</span>
+            <span aria-hidden> · </span>
+            {t("common.tagline")}
+          </p>
           <Link
             href="/login"
             className="text-muted-foreground hover:text-foreground underline-offset-4 transition-colors hover:underline"

@@ -1,5 +1,16 @@
 import { getTranslations } from "next-intl/server";
+import {
+  CalendarCheck2,
+  Languages,
+  Search,
+  ShieldCheck,
+  Stethoscope,
+  UserRound,
+} from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
+import { Link } from "@/i18n/navigation";
+import { buttonVariants } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import { listSpecialties } from "@/lib/specialties/list-specialties";
 import { listSpecialtyAliases } from "@/lib/specialties/list-specialty-aliases";
 import { resolveSpecialtyFromQuery } from "@/lib/specialties/resolve-specialty-query";
@@ -97,11 +108,16 @@ export default async function HomePage({
   const results: DoctorSearchResult[] = doctors
     .filter((doctor) => {
       if (hasQuery) {
-        return resolvedQuerySpecialtySlug !== null && doctor.specialties?.slug === resolvedQuerySpecialtySlug;
+        return (
+          resolvedQuerySpecialtySlug !== null &&
+          doctor.specialties?.slug === resolvedQuerySpecialtySlug
+        );
       }
       return !selectedSpecialty || doctor.specialties?.slug === selectedSpecialty;
     })
-    .filter((doctor) => !selectedCity || doctor.clinics.some((clinic) => clinic.city === selectedCity))
+    .filter(
+      (doctor) => !selectedCity || doctor.clinics.some((clinic) => clinic.city === selectedCity),
+    )
     .map((doctor) => ({
       slug: doctor.slug,
       fullName: doctor.full_name,
@@ -109,60 +125,163 @@ export default async function HomePage({
       city: doctor.clinics[0]?.city ?? null,
     }));
 
+  const hasActiveFilters = Boolean(selectedSpecialty || selectedCity || selectedQuery?.trim());
+  const trustPoints = [
+    { icon: ShieldCheck, label: t("home.trust.noAccount") },
+    { icon: Languages, label: t("home.trust.bilingual") },
+    { icon: CalendarCheck2, label: t("home.trust.onlineBooking") },
+  ];
+  const steps = [
+    {
+      icon: Search,
+      title: t("home.howItWorks.searchTitle"),
+      description: t("home.howItWorks.searchDescription"),
+    },
+    {
+      icon: UserRound,
+      title: t("home.howItWorks.chooseTitle"),
+      description: t("home.howItWorks.chooseDescription"),
+    },
+    {
+      icon: CalendarCheck2,
+      title: t("home.howItWorks.bookTitle"),
+      description: t("home.howItWorks.bookDescription"),
+    },
+  ];
+
   return (
-    <div className="relative overflow-hidden">
-      <div
-        aria-hidden
-        className="from-primary/7 via-accent/5 pointer-events-none absolute inset-x-0 top-0 -z-10 h-[26rem] bg-gradient-to-b to-transparent"
-      />
-      <div className="mx-auto max-w-5xl px-4 py-16 sm:px-6 sm:py-20">
-        <p className="text-accent text-sm font-semibold tracking-[0.14em] uppercase">
-          {t("common.appName")}
-        </p>
-        <h1 className="font-heading mt-3 text-4xl font-medium tracking-tight text-balance sm:text-5xl">
-          {t("home.title")}
-        </h1>
-        <p className="text-muted-foreground mt-4 max-w-xl text-lg leading-relaxed">
-          {t("home.description")}
-        </p>
+    <div className="overflow-hidden">
+      <section className="relative">
+        <div
+          aria-hidden
+          className="from-primary/10 via-accent/5 pointer-events-none absolute inset-x-0 top-0 -z-10 h-[34rem] bg-gradient-to-b to-transparent"
+        />
+        <div
+          aria-hidden
+          className="bg-accent/8 pointer-events-none absolute end-[-8rem] -top-24 -z-10 size-80 rounded-full blur-3xl"
+        />
 
-        <div className="mt-10">
-          <DoctorSearchFilters
-            specialtyOptions={specialtyOptions}
-            cityOptions={cityOptions}
-            selectedSpecialty={selectedSpecialty}
-            selectedCity={selectedCity}
-            selectedQuery={selectedQuery}
-            labels={{
-              specialtyLabel: t("home.specialtyLabel"),
-              specialtyAll: t("home.specialtyAll"),
-              cityLabel: t("home.cityLabel"),
-              cityAll: t("home.cityAll"),
-              queryLabel: t("home.queryLabel"),
-              queryPlaceholder: t("home.queryPlaceholder"),
-              searchAction: t("home.searchAction"),
-            }}
-          />
-        </div>
-
-        <div className="mt-10">
-          {results.length === 0 ? (
-            <p className="text-muted-foreground py-12 text-center text-sm">
-              {t("home.resultsEmpty")}
+        <div className="mx-auto max-w-6xl px-4 py-14 sm:px-6 sm:py-20">
+          <div className="max-w-3xl">
+            <p className="text-accent text-sm font-semibold tracking-[0.14em] uppercase">
+              {t("common.appName")}
             </p>
-          ) : (
-            <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-              {results.map((doctor) => (
-                <DoctorResultCard
-                  key={doctor.slug}
-                  doctor={doctor}
-                  viewProfileLabel={t("home.viewProfile")}
-                />
-              ))}
-            </div>
-          )}
+            <h1 className="font-heading mt-3 text-4xl leading-[1.08] font-medium tracking-tight text-balance sm:text-6xl">
+              {t("home.title")}
+            </h1>
+            <p className="text-muted-foreground mt-5 max-w-2xl text-lg leading-relaxed sm:text-xl">
+              {t("home.description")}
+            </p>
+          </div>
+
+          <ul className="mt-7 flex flex-wrap gap-x-5 gap-y-2" aria-label={t("home.trust.label")}>
+            {trustPoints.map(({ icon: Icon, label }) => (
+              <li key={label} className="text-muted-foreground flex items-center gap-2 text-sm">
+                <Icon className="text-primary size-4" aria-hidden />
+                {label}
+              </li>
+            ))}
+          </ul>
+
+          <div className="mt-9">
+            <DoctorSearchFilters
+              specialtyOptions={specialtyOptions}
+              cityOptions={cityOptions}
+              selectedSpecialty={selectedSpecialty}
+              selectedCity={selectedCity}
+              selectedQuery={selectedQuery}
+              labels={{
+                specialtyLabel: t("home.specialtyLabel"),
+                specialtyAll: t("home.specialtyAll"),
+                cityLabel: t("home.cityLabel"),
+                cityAll: t("home.cityAll"),
+                queryLabel: t("home.queryLabel"),
+                queryPlaceholder: t("home.queryPlaceholder"),
+                searchAction: t("home.searchAction"),
+              }}
+            />
+          </div>
+
+          <div className="mt-12">
+            {results.length === 0 ? (
+              <div className="bg-card/70 flex flex-col items-center rounded-2xl border border-dashed px-5 py-12 text-center shadow-sm sm:px-10">
+                <span className="bg-primary/10 text-primary flex size-12 items-center justify-center rounded-full">
+                  <Stethoscope className="size-6" aria-hidden />
+                </span>
+                <h2 className="font-heading mt-4 text-2xl font-medium">
+                  {t(hasActiveFilters ? "home.filteredEmptyTitle" : "home.marketplaceEmptyTitle")}
+                </h2>
+                <p className="text-muted-foreground mt-2 max-w-lg leading-relaxed">
+                  {t(
+                    hasActiveFilters
+                      ? "home.filteredEmptyDescription"
+                      : "home.marketplaceEmptyDescription",
+                  )}
+                </p>
+                {hasActiveFilters ? (
+                  <Link
+                    href="/"
+                    className={cn(buttonVariants({ variant: "outline", size: "lg" }), "mt-6")}
+                  >
+                    {t("home.clearFilters")}
+                  </Link>
+                ) : null}
+              </div>
+            ) : (
+              <>
+                <div className="mb-5 flex items-end justify-between gap-4">
+                  <div>
+                    <p className="text-accent text-xs font-semibold tracking-[0.14em] uppercase">
+                      {t("home.resultsEyebrow")}
+                    </p>
+                    <h2 className="font-heading mt-1 text-2xl font-medium sm:text-3xl">
+                      {t("home.resultsCount", { count: results.length })}
+                    </h2>
+                  </div>
+                </div>
+                <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+                  {results.map((doctor) => (
+                    <DoctorResultCard
+                      key={doctor.slug}
+                      doctor={doctor}
+                      viewProfileLabel={t("home.viewProfile")}
+                    />
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
         </div>
-      </div>
+      </section>
+
+      <section className="border-border/70 bg-card/35 border-t">
+        <div className="mx-auto max-w-6xl px-4 py-14 sm:px-6 sm:py-20">
+          <div className="max-w-2xl">
+            <p className="text-accent text-sm font-semibold tracking-[0.14em] uppercase">
+              {t("home.howItWorks.eyebrow")}
+            </p>
+            <h2 className="font-heading mt-2 text-3xl font-medium tracking-tight sm:text-4xl">
+              {t("home.howItWorks.title")}
+            </h2>
+          </div>
+          <ol className="mt-9 grid gap-4 md:grid-cols-3">
+            {steps.map(({ icon: Icon, title, description }, index) => (
+              <li key={title} className="bg-background rounded-2xl border p-5 shadow-sm sm:p-6">
+                <div className="flex items-center justify-between gap-4">
+                  <span className="bg-primary/10 text-primary flex size-10 items-center justify-center rounded-xl">
+                    <Icon className="size-5" aria-hidden />
+                  </span>
+                  <span className="text-muted-foreground/60 text-sm font-semibold tabular-nums">
+                    {String(index + 1).padStart(2, "0")}
+                  </span>
+                </div>
+                <h3 className="font-heading mt-5 text-xl font-medium">{title}</h3>
+                <p className="text-muted-foreground mt-2 leading-relaxed">{description}</p>
+              </li>
+            ))}
+          </ol>
+        </div>
+      </section>
     </div>
   );
 }

@@ -27,10 +27,28 @@ export function generateStaticParams() {
   return routing.locales.map((locale) => ({ locale }));
 }
 
-export const metadata: Metadata = {
-  title: "Doctor Platform",
-  description: "Doctor presentation and appointment booking",
-};
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ locale: string }>;
+}): Promise<Metadata> {
+  const { locale } = await params;
+  const isArabic = locale === "ar";
+
+  return {
+    applicationName: "Dewini",
+    manifest: `/${locale}/manifest.webmanifest`,
+    title: {
+      default: isArabic
+        ? "دويني — احجز موعدك الطبي بسهولة"
+        : "Dewini — Votre médecin, votre rendez-vous",
+      template: "%s | Dewini",
+    },
+    description: isArabic
+      ? "ابحث عن طبيب حسب الاختصاص أو المدينة واحجز موعدك عبر الإنترنت بسهولة."
+      : "Trouvez un médecin par spécialité ou par ville et réservez votre rendez-vous en ligne simplement.",
+  };
+}
 
 export default async function LocaleLayout({
   children,

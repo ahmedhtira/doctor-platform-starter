@@ -2,6 +2,7 @@ import { getTranslations } from "next-intl/server";
 import { Badge } from "@/components/ui/badge";
 import { AppointmentActions } from "./appointment-actions";
 import type { DashboardAppointment } from "@/lib/dashboard/fetch-dashboard-appointments";
+import { cn } from "@/lib/utils";
 
 function formatTime(iso: string, timezone: string, locale: string): string {
   const intlLocale = locale === "ar" ? "ar-TN-u-nu-latn" : "fr-TN";
@@ -31,15 +32,26 @@ export async function AppointmentList({
   appointments,
   locale,
   showDate = false,
+  variant = "list",
 }: {
   appointments: DashboardAppointment[];
   locale: string;
   showDate?: boolean;
+  variant?: "list" | "cards";
 }) {
   const t = await getTranslations("dashboard.appointmentList");
 
   if (appointments.length === 0) {
-    return <p className="text-muted-foreground text-sm">{t("empty")}</p>;
+    return (
+      <p
+        className={cn(
+          "text-muted-foreground text-sm",
+          variant === "cards" && "rounded-xl border border-dashed px-3 py-6 text-center",
+        )}
+      >
+        {t("empty")}
+      </p>
+    );
   }
 
   const statusVariant: Record<string, "default" | "secondary" | "destructive"> = {
@@ -49,10 +61,24 @@ export async function AppointmentList({
     no_show: "secondary",
   };
 
+  const statusBorderClass: Record<string, string> = {
+    confirmed: "border-s-primary",
+    cancelled: "border-s-destructive",
+    completed: "border-s-muted-foreground/40",
+    no_show: "border-s-accent",
+  };
+
   return (
-    <ul className="divide-border divide-y">
+    <ul className={cn(variant === "list" ? "divide-border divide-y" : "space-y-2")}>
       {appointments.map((appointment) => (
-        <li key={appointment.id} className="py-4">
+        <li
+          key={appointment.id}
+          className={cn(
+            variant === "list" ? "py-4" : "bg-card rounded-xl border border-s-3 p-3 shadow-xs",
+            variant === "cards" &&
+              (statusBorderClass[appointment.status] ?? "border-s-muted-foreground/30"),
+          )}
+        >
           <div className="flex flex-wrap items-start justify-between gap-2">
             <div>
               <p className="font-medium">

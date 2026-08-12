@@ -1,6 +1,7 @@
 {
   "common": {
-    "appName": "منصة الطبيب",
+    "appName": "دويني",
+    "tagline": "موعدك الطبي، بكل بساطة.",
     "switchToFrench": "Français",
     "switchToArabic": "العربية"
   },
@@ -9,17 +10,40 @@
     "staffPortal": "مساحة الطبيب"
   },
   "home": {
-    "title": "البحث عن طبيب",
-    "description": "صفّ حسب الاختصاص والمدينة للعثور على الطبيب المناسب.",
+    "title": "طبيبك المناسب، وموعدك في دقائق.",
+    "description": "ابحث حسب الاختصاص أو الأعراض أو المدينة واحجز موعدك بسهولة.",
     "queryLabel": "البحث بكلمة مفتاحية",
     "queryPlaceholder": "عرض، اختصاص… مثال: «قلب»، «أسنان»",
     "specialtyLabel": "الاختصاص",
     "specialtyAll": "جميع الاختصاصات",
     "cityLabel": "المدينة",
     "cityAll": "جميع المدن",
-    "searchAction": "بحث",
+    "searchAction": "ابحث عن طبيب",
     "resultsEmpty": "لا يوجد طبيب يطابق بحثك.",
-    "viewProfile": "عرض الملف الشخصي"
+    "marketplaceEmptyTitle": "أول الأطباء قادمون قريبًا إلى دويني",
+    "marketplaceEmptyDescription": "المنصة جاهزة، وستتوفر أول ملفات الأطباء قريبًا.",
+    "filteredEmptyTitle": "لا يوجد طبيب يطابق هذه المعايير",
+    "filteredEmptyDescription": "جرّب اختصاصًا أو مدينة أخرى، أو امسح عوامل البحث.",
+    "clearFilters": "مسح عوامل البحث",
+    "resultsEyebrow": "النتائج",
+    "resultsCount": "{count, plural, one {طبيب واحد متاح} two {طبيبان متاحان} few {# أطباء متاحون} many {# طبيبًا متاحًا} other {# طبيب متاح}}",
+    "viewProfile": "عرض الملف الشخصي",
+    "trust": {
+      "label": "مزايا الخدمة",
+      "noAccount": "دون حساب للمريض",
+      "bilingual": "العربية والفرنسية",
+      "onlineBooking": "حجز عبر الإنترنت"
+    },
+    "howItWorks": {
+      "eyebrow": "بسيط وسريع",
+      "title": "موعدك في ثلاث خطوات",
+      "searchTitle": "ابحث",
+      "searchDescription": "اكتب الاختصاص أو الأعراض أو المدينة للعثور على الطبيب المناسب.",
+      "chooseTitle": "اختر",
+      "chooseDescription": "اطّلع على ملف الطبيب ومعلومات العيادة والمواعيد المتاحة بوضوح.",
+      "bookTitle": "احجز",
+      "bookDescription": "اختر الوقت المناسب وأكّد موعدك دون الحاجة إلى إنشاء حساب للمريض."
+    }
   },
   "login": {
     "title": "تسجيل الدخول",
@@ -52,6 +76,7 @@
     "errorGeneric": "حدث خطأ. يرجى المحاولة مرة أخرى."
   },
   "dashboard": {
+    "workspace": "المساحة المهنية",
     "logout": "تسجيل الخروج",
     "nav": {
       "today": "اليوم",
@@ -59,15 +84,28 @@
       "availability": "أوقات التوفر",
       "profile": "الملف العام",
       "staff": "السكرتارية",
+      "installApp": "تثبيت دويني برو",
+      "installAppDescription": "افتح مساحتك كتطبيق على الحاسوب",
+      "installAppOpening": "جارٍ الفتح…",
       "switchDoctorLabel": "الطبيب"
     },
     "today": {
-      "title": "اليوم"
+      "title": "اليوم",
+      "nextAppointment": "الموعد القادم",
+      "scheduleTitle": "برنامج اليوم",
+      "scheduleDescription": "جميع المواعيد المبرمجة لهذا اليوم.",
+      "summary": {
+        "total": "المواعيد",
+        "remaining": "المتبقية",
+        "completed": "المكتملة",
+        "attention": "ملغاة / غياب"
+      }
     },
     "calendar": {
       "title": "التقويم",
       "previousWeek": "الأسبوع السابق",
-      "nextWeek": "الأسبوع التالي"
+      "nextWeek": "الأسبوع التالي",
+      "currentWeek": "هذا الأسبوع"
     },
     "appointmentList": {
       "empty": "لا توجد مواعيد.",
@@ -115,6 +153,11 @@
     },
     "availability": {
       "title": "أوقات التوفر",
+      "description": "اعرض أسبوعك المعتاد وأدر ساعات العمل والاستراحات وفترات الغياب من مكان واحد.",
+      "weeklyOverviewTitle": "نظرة على الأسبوع",
+      "noHours": "غير مضبوط",
+      "breakLabel": "الاستراحات",
+      "emptyConfigured": "لا توجد عناصر مضبوطة.",
       "noClinics": "لم يتم بعد إعداد أي عيادة لهذا الطبيب.",
       "workingHoursTitle": "ساعات العمل",
       "breaksTitle": "الاستراحات",
@@ -152,6 +195,12 @@
   },
   "booking": {
     "title": "أخذ موعد",
+    "steps": {
+      "label": "مراحل الحجز",
+      "chooseSlot": "الموعد",
+      "yourDetails": "معلوماتك",
+      "confirmation": "التأكيد"
+    },
     "clinicLabel": "العيادة",
     "appointmentTypeLabel": "نوع الاستشارة",
     "dateLabel": "التاريخ",
@@ -172,8 +221,12 @@
     "confirmationDateLabel": "التاريخ والوقت",
     "confirmationClinicLabel": "المكان",
     "confirmationPatientLabel": "المريض",
+    "addToCalendarAction": "إضافة إلى التقويم",
+    "nextStepsTitle": "ماذا بعد؟",
+    "nextStepsDescription": "تم تسجيل موعدك. احتفظ برابط الإدارة أدناه لتعديله أو إلغائه لاحقًا.",
     "managementLinkTitle": "إدارة موعدك",
-    "managementLinkDescription": "احتفظ بهذا الرابط لعرض موعدك أو إلغائه أو تعديله لاحقًا."
+    "managementLinkDescription": "هذا الرابط شخصي. احتفظ به لعرض موعدك أو إلغائه أو تعديله لاحقًا.",
+    "manageAppointmentAction": "فتح إدارة الموعد"
   },
   "manage": {
     "title": "إدارة موعدي",

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState, useTransition, type FormEvent } from "react";
 import { useTranslations } from "next-intl";
+import { CalendarDays, Check, UserRound } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,6 +16,7 @@ import {
 } from "@/app/[locale]/(public)/doctors/[slug]/actions";
 import type { AvailableSlot } from "@/lib/availability/compute-available-slots";
 import type { BookingInput } from "@/lib/booking/booking-schema";
+import { cn } from "@/lib/utils";
 
 type Clinic = { id: string; name: string; address: string; timezone: string };
 type AppointmentType = { id: string; name: string; durationMinutes: number };
@@ -64,6 +66,15 @@ export function BookingWidget({
   const [confirmation, setConfirmation] = useState<SuccessResult | null>(null);
 
   const selectedClinic = clinics.find((clinic) => clinic.id === clinicId);
+  const selectedAppointmentType = appointmentTypes.find(
+    (appointmentType) => appointmentType.id === appointmentTypeId,
+  );
+  const activeStep = selectedSlotStart ? 2 : 1;
+  const steps = [
+    { number: 1, label: t("steps.chooseSlot"), icon: CalendarDays },
+    { number: 2, label: t("steps.yourDetails"), icon: UserRound },
+    { number: 3, label: t("steps.confirmation"), icon: Check },
+  ];
 
   // startTransition (React 19 async actions) rather than a plain async
   // useCallback + manual loading state: state updates inside a transition
@@ -76,7 +87,12 @@ export function BookingWidget({
         setSlots([]);
         return;
       }
-      const result = await getSlotsAction({ doctorId, clinicId, appointmentTypeId, localDate: date });
+      const result = await getSlotsAction({
+        doctorId,
+        clinicId,
+        appointmentTypeId,
+        localDate: date,
+      });
       setSlots(result.success ? result.slots : []);
     });
   }, [doctorId, clinicId, appointmentTypeId, date]);
@@ -120,7 +136,9 @@ export function BookingWidget({
 
     if (result.errorCode === "SLOT_UNAVAILABLE" || result.errorCode === "SCHEDULE_CHANGED") {
       setSubmitError(
-        result.errorCode === "SLOT_UNAVAILABLE" ? t("errorSlotUnavailable") : t("errorScheduleChanged"),
+        result.errorCode === "SLOT_UNAVAILABLE"
+          ? t("errorSlotUnavailable")
+          : t("errorScheduleChanged"),
       );
       refreshSlots();
       return;
@@ -137,6 +155,7 @@ export function BookingWidget({
         clinicName={selectedClinic.name}
         clinicAddress={selectedClinic.address}
         clinicTimezone={selectedClinic.timezone}
+        durationMinutes={selectedAppointmentType?.durationMinutes ?? 30}
         patientName={confirmation.appointment.patient_name}
         managementToken={confirmation.managementToken}
         locale={locale}
@@ -149,6 +168,10 @@ export function BookingWidget({
           confirmationPatientLabel: t("confirmationPatientLabel"),
           managementLinkTitle: t("managementLinkTitle"),
           managementLinkDescription: t("managementLinkDescription"),
+          addToCalendarAction: t("addToCalendarAction"),
+          nextStepsTitle: t("nextStepsTitle"),
+          nextStepsDescription: t("nextStepsDescription"),
+          manageAppointmentAction: t("manageAppointmentAction"),
         }}
       />
     );
@@ -160,6 +183,42 @@ export function BookingWidget({
         <CardTitle className="text-xl">{t("title")}</CardTitle>
       </CardHeader>
       <CardContent className="space-y-5">
+        <ol className="grid grid-cols-3 gap-2" aria-label={t("steps.label")}>
+          {steps.map(({ number, label, icon: Icon }) => {
+            const isActive = number === activeStep;
+            const isComplete = number < activeStep;
+
+            return (
+              <li key={number} className="min-w-0 text-center">
+                <div
+                  className={cn(
+                    "mx-auto flex size-8 items-center justify-center rounded-full border text-xs font-semibold transition-colors",
+                    isActive || isComplete
+                      ? "border-primary bg-primary text-primary-foreground"
+                      : "border-border bg-muted text-muted-foreground",
+                  )}
+                >
+                  {isComplete ? (
+                    <Check className="size-4" aria-hidden />
+                  ) : (
+                    <Icon className="size-4" aria-hidden />
+                  )}
+                </div>
+                <p
+                  className={cn(
+                    "mt-1.5 truncate text-xs",
+                    isActive ? "text-foreground font-semibold" : "text-muted-foreground",
+                  )}
+                >
+                  {label}
+                </p>
+              </li>
+            );
+          })}
+        </ol>
+
+        <div className="border-t" />
+
         {clinics.length > 1 ? (
           <div>
             <Label htmlFor="booking-clinic">{t("clinicLabel")}</Label>
@@ -266,7 +325,7 @@ export function BookingWidget({
               ) : null}
             </div>
 
-            <Button type="submit" disabled={submitting} className="w-full">
+            <Button type="submit" size="lg" disabled={submitting} className="h-11 w-full">
               {submitting ? t("submitting") : t("submitAction")}
             </Button>
           </form>

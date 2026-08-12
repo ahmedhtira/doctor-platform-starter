@@ -51,7 +51,7 @@ export function SlotPicker({
         value={date}
         min={minDate}
         onChange={(event) => onDateChange(event.target.value)}
-        className="border-input focus-visible:border-ring focus-visible:ring-ring/50 mt-1.5 h-9 w-full max-w-56 rounded-lg border bg-transparent px-2.5 text-sm shadow-xs transition-all outline-none focus-visible:ring-3"
+        className="border-input bg-background focus-visible:border-ring focus-visible:ring-ring/50 mt-1.5 h-11 w-full max-w-56 rounded-lg border px-3 text-sm shadow-xs transition-all outline-none focus-visible:ring-3"
       />
 
       <div className="mt-4 min-h-9">
@@ -70,7 +70,7 @@ export function SlotPicker({
                   onClick={() => onSelectSlot(slot.slotStart)}
                   aria-pressed={isSelected}
                   className={cn(
-                    "rounded-lg border px-3 py-1.5 text-sm font-medium transition-colors",
+                    "min-h-11 rounded-lg border px-3 py-2 text-sm font-medium transition-colors",
                     isSelected
                       ? "bg-accent text-accent-foreground border-accent"
                       : "border-input hover:bg-muted",
