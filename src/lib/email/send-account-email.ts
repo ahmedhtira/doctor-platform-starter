@@ -44,14 +44,13 @@ export async function sendAccountEmail(
       input.template === "password_reset"
         ? getNoReplyEmailFromAddress()
         : getNotificationEmailFromAddress(),
+    replyTo:
+      input.template === "password_reset"
+        ? undefined
+        : "support@dewini.net",
     subject: rendered.subject,
     html: rendered.html,
     text: rendered.text,
-    // A fresh key per call, not a stable per-event key like the outbox
-    // path uses — there's no persisted row for a retry to reuse the same
-    // key against, by design (nothing here is ever retried from storage).
-    // This still protects against the same request being retried once at
-    // the network layer.
     idempotencyKey: `doctor-platform-account/${randomUUID()}`,
-  });
+});
 }
