@@ -5,7 +5,7 @@ import type { Database } from "@/lib/supabase/database.types";
 import { emailOutboxPayloadSchema } from "./outbox-payload";
 import { deriveEmailManagementToken } from "./derive-management-token";
 import { renderOutboxEmail, templateHasManagementLink } from "./render-outbox-email";
-import { getAppUrl, getEmailFromAddress } from "./env";
+import { getAppUrl, getAppointmentEmailFromAddress } from "./env";
 import type { EmailSender } from "./send-email";
 
 type EmailOutboxRow = Database["public"]["Functions"]["claim_email_outbox_batch"]["Returns"][number];
@@ -168,7 +168,7 @@ async function processRow(
 
   const result = await sender({
     to: row.to_email,
-    from: getEmailFromAddress(),
+    from: getAppointmentEmailFromAddress(),
     subject: rendered.subject,
     html: rendered.html,
     text: rendered.text,
