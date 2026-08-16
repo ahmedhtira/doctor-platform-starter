@@ -169,6 +169,7 @@ async function processRow(
   const result = await sender({
     to: row.to_email,
     from: getAppointmentEmailFromAddress(),
+    replyTo: "support@dewini.net",
     subject: rendered.subject,
     html: rendered.html,
     text: rendered.text,
