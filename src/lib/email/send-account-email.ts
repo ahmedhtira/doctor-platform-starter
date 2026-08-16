@@ -1,5 +1,8 @@
 import { randomUUID } from "node:crypto";
-import { getEmailFromAddress } from "./env";
+import {
+  getNotificationEmailFromAddress,
+  getNoReplyEmailFromAddress,
+} from "./env";
 import { renderAccountEmail, type AccountEmailTemplate } from "./render-account-email";
 import type { EmailSender, SendEmailResult } from "./send-email";
 
@@ -37,7 +40,10 @@ export async function sendAccountEmail(
 
   return sender({
     to: input.to,
-    from: getEmailFromAddress(),
+    from:
+      input.template === "password_reset"
+        ? getNoReplyEmailFromAddress()
+        : getNotificationEmailFromAddress(),
     subject: rendered.subject,
     html: rendered.html,
     text: rendered.text,
