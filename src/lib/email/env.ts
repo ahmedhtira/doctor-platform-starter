@@ -11,7 +11,31 @@ export function getResendApiKey(): string {
 }
 
 export function getEmailFromAddress(): string {
-  return process.env.EMAIL_FROM_ADDRESS || "Doctor Platform <onboarding@resend.dev>";
+  return (
+    process.env.EMAIL_FROM_ADDRESS ||
+    "Dewini Appointments <appointments@send.dewini.net>"
+  );
+}
+
+export function getAppointmentEmailFromAddress(): string {
+  return (
+    process.env.EMAIL_APPOINTMENTS_FROM_ADDRESS ||
+    "Dewini Appointments <appointments@send.dewini.net>"
+  );
+}
+
+export function getNotificationEmailFromAddress(): string {
+  return (
+    process.env.EMAIL_NOTIFICATIONS_FROM_ADDRESS ||
+    "Dewini Notifications <notifications@send.dewini.net>"
+  );
+}
+
+export function getNoReplyEmailFromAddress(): string {
+  return (
+    process.env.EMAIL_NOREPLY_FROM_ADDRESS ||
+    "Dewini <no-reply@send.dewini.net>"
+  );
 }
 
 export function getAppUrl(): string {
@@ -20,9 +44,7 @@ export function getAppUrl(): string {
 
 /**
  * Keys the deterministic HMAC derivation of email-delivery management
- * tokens (see derive-management-token.ts). Must stay stable for as long
- * as any email_outbox row that could still be retried exists — see the
- * stability warning next to EMAIL_TOKEN_DERIVATION_KEY in .env.example.
+ * tokens. Must stay stable while queued/retryable email_outbox rows exist.
  */
 export function getEmailTokenDerivationKey(): string {
   return requireEnv("EMAIL_TOKEN_DERIVATION_KEY");
