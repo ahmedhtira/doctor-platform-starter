@@ -1,6 +1,7 @@
 export type SendEmailInput = {
   to: string;
   from: string;
+  replyTo?: string;
   subject: string;
   html: string;
   text: string;
