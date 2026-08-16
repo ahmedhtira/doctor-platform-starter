@@ -21,6 +21,7 @@ export function createResendSender(): EmailSender {
     const { data, error } = await resend.emails.send(
       {
         from: input.from,
+        replyTo: input.replyTo,
         to: input.to,
         subject: input.subject,
         html: input.html,
