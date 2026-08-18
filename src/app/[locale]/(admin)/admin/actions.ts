@@ -8,7 +8,11 @@ import { getAuthenticatedUser } from "@/lib/dashboard/auth-context";
 import { getPlatformAdminUserId } from "@/lib/admin/env";
 import { isPlatformAdminUserId } from "@/lib/admin/is-platform-admin";
 import { AdminError, type AdminErrorCode } from "@/lib/admin/admin-errors";
-import { provisionDoctor, type ProvisionedDoctor } from "@/lib/admin/provision-doctor";
+import {
+  provisionDoctor,
+  type ProvisionedDoctor,
+  type ProvisionDoctorPhoto,
+} from "@/lib/admin/provision-doctor";
 import { updateDoctor, type UpdatedDoctor } from "@/lib/admin/update-doctor";
 import { setDoctorPublished } from "@/lib/admin/set-doctor-published";
 import { setDoctorSuspended } from "@/lib/admin/set-doctor-suspended";
@@ -35,6 +39,85 @@ async function requireAdminActorUserId(): Promise<
     return { success: false, errorCode: "UNAUTHENTICATED" };
   }
   return { success: true, actorUserId: user.id };
+}
+const MAX_DOCTOR_PHOTO_BYTES = 2 * 1024 * 1024;
+
+function detectDoctorPhotoType(
+  bytes: Uint8Array,
+): Pick<ProvisionDoctorPhoto, "contentType" | "extension"> | null {
+  // JPEG
+  if (
+    bytes.length >= 3 &&
+    bytes[0] === 0xff &&
+    bytes[1] === 0xd8 &&
+    bytes[2] === 0xff
+  ) {
+    return { contentType: "image/jpeg", extension: "jpg" };
+  }
+
+  // PNG
+  if (
+    bytes.length >= 8 &&
+    bytes[0] === 0x89 &&
+    bytes[1] === 0x50 &&
+    bytes[2] === 0x4e &&
+    bytes[3] === 0x47 &&
+    bytes[4] === 0x0d &&
+    bytes[5] === 0x0a &&
+    bytes[6] === 0x1a &&
+    bytes[7] === 0x0a
+  ) {
+    return { contentType: "image/png", extension: "png" };
+  }
+
+  // WebP
+  if (
+    bytes.length >= 12 &&
+    bytes[0] === 0x52 &&
+    bytes[1] === 0x49 &&
+    bytes[2] === 0x46 &&
+    bytes[3] === 0x46 &&
+    bytes[8] === 0x57 &&
+    bytes[9] === 0x45 &&
+    bytes[10] === 0x42 &&
+    bytes[11] === 0x50
+  ) {
+    return { contentType: "image/webp", extension: "webp" };
+  }
+
+  return null;
+}
+
+async function parseDoctorPhoto(
+  formData: FormData,
+): Promise<ProvisionDoctorPhoto | undefined> {
+  const entry = formData.get("photo");
+
+  if (!(entry instanceof File) || entry.size === 0) {
+    return undefined;
+  }
+
+  if (entry.size > MAX_DOCTOR_PHOTO_BYTES) {
+    throw new AdminError(
+      "VALIDATION_ERROR",
+      "Doctor photo must be 2 MB or smaller.",
+    );
+  }
+
+  const body = await entry.arrayBuffer();
+  const detected = detectDoctorPhotoType(new Uint8Array(body));
+
+  if (!detected) {
+    throw new AdminError(
+      "VALIDATION_ERROR",
+      "Doctor photo must be JPEG, PNG, or WebP.",
+    );
+  }
+
+  return {
+    body,
+    ...detected,
+  };
 }
 
 const clinicInputSchema = z.object({
@@ -70,8 +153,44 @@ export type CreateDoctorResult =
   | { success: true; doctor: ProvisionedDoctor }
   | { success: false; errorCode: ActionErrorCode; message: string };
 
-export async function createDoctorAction(input: unknown): Promise<CreateDoctorResult> {
-  const parsed = createDoctorInputSchema.safeParse(input);
+export async function createDoctorAction(
+  input: unknown,
+): Promise<CreateDoctorResult> {
+  let rawInput = input;
+  let photo: ProvisionDoctorPhoto | undefined;
+
+  try {
+    if (input instanceof FormData) {
+      const payload = input.get("payload");
+
+      if (typeof payload !== "string") {
+        return {
+          success: false,
+          errorCode: "VALIDATION_ERROR",
+          message: "Invalid request.",
+        };
+      }
+
+      rawInput = JSON.parse(payload);
+      photo = await parseDoctorPhoto(input);
+    }
+  } catch (error) {
+    if (error instanceof AdminError) {
+      return {
+        success: false,
+        errorCode: error.code,
+        message: error.message,
+      };
+    }
+
+    return {
+      success: false,
+      errorCode: "VALIDATION_ERROR",
+      message: "Invalid request.",
+    };
+  }
+
+  const parsed = createDoctorInputSchema.safeParse(rawInput);
   if (!parsed.success) {
     return { success: false, errorCode: "VALIDATION_ERROR", message: "Invalid request." };
   }
@@ -95,6 +214,7 @@ export async function createDoctorAction(input: unknown): Promise<CreateDoctorRe
       timezone: parsed.data.timezone,
       bio: parsed.data.bio,
       phone: parsed.data.phone,
+      photo,
       pageVariant: parsed.data.pageVariant,
       customTemplateKey: parsed.data.customTemplateKey,
       clinic: parsed.data.clinic,
