@@ -120,11 +120,19 @@ async function parseDoctorPhoto(
   };
 }
 
+const consultationLocationTypeSchema = z.enum([
+  "private_practice",
+  "clinic",
+  "hospital",
+  "medical_center",
+  "other",
+]);
+
 const clinicInputSchema = z.object({
   name: z.string().trim().min(1),
   address: z.string().trim().min(1),
   city: z.string().trim().optional(),
-  timezone: z.string().trim().min(1),
+  locationType: consultationLocationTypeSchema.default("other"),
 });
 
 const createDoctorInputSchema = z.object({
@@ -211,13 +219,19 @@ export async function createDoctorAction(
       specialtyId: parsed.data.specialtyId,
       slug: parsed.data.slug,
       defaultLocale: parsed.data.defaultLocale,
-      timezone: parsed.data.timezone,
+      timezone: "Africa/Tunis",
       bio: parsed.data.bio,
       phone: parsed.data.phone,
       photo,
       pageVariant: parsed.data.pageVariant,
       customTemplateKey: parsed.data.customTemplateKey,
-      clinic: parsed.data.clinic,
+      clinic: {
+  name: parsed.data.clinic.name,
+  address: parsed.data.clinic.address,
+  city: parsed.data.clinic.city,
+  location_type: parsed.data.clinic.locationType,
+  timezone: "Africa/Tunis",
+},
       appointmentType: {
         name: parsed.data.appointmentTypeName,
         durationMinutes: parsed.data.appointmentTypeDurationMinutes,
