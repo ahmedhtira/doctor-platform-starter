@@ -1,5 +1,8 @@
 "use server";
 
+import { after } from "next/server";
+import { createResendSender } from "@/lib/email/resend-sender";
+import { processEmailOutbox } from "@/lib/email/process-email-outbox";
 import { z } from "zod";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
 import { getAvailableSlots } from "@/lib/availability/get-available-slots";
@@ -67,8 +70,27 @@ export async function submitBookingAction(input: unknown): Promise<SubmitBooking
 
   try {
     const result = await bookAppointment(supabase, parsed.data);
-    return { success: true, appointment: result.appointment, managementToken: result.managementToken };
+
+after(async () => {
+  try {
+    await processEmailOutbox(
+      createServiceRoleClient(),
+      createResendSender(),
+      { limit: 20 },
+    );
   } catch (error) {
+    console.error(
+      "submitBookingAction: email outbox processing failed",
+      error,
+    );
+  }
+});
+
+return {
+  success: true,
+  appointment: result.appointment,
+  managementToken: result.managementToken,
+}; catch (error) {
     if (error instanceof BookingError) {
       return { success: false, errorCode: error.code, message: error.message };
     }
