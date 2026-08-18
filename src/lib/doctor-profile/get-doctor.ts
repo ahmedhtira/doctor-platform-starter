@@ -20,7 +20,7 @@ export const getDoctor = cache(async (slug: string) => {
     .from("doctors")
     .select(
       `
-      id, full_name, bio, phone, slug, page_variant, custom_template_key,
+      id, full_name, bio, phone, photo_path, slug, page_variant, custom_template_key,
       specialties ( name_fr, name_ar ),
       clinics ( id, name, address, timezone ),
       appointment_types ( id, name, duration_minutes ),
