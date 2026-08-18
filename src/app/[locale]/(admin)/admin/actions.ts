@@ -131,7 +131,7 @@ const consultationLocationTypeSchema = z.enum([
 const clinicInputSchema = z.object({
   name: z.string().trim().min(1),
   address: z.string().trim().min(1),
-  city: z.string().trim().optional(),
+  city: z.string().trim().min(1),
   locationType: consultationLocationTypeSchema.default("other"),
 });
 
@@ -144,7 +144,6 @@ const createDoctorInputSchema = z.object({
     .trim()
     .regex(/^[a-z0-9]+(-[a-z0-9]+)*$/),
   defaultLocale: z.enum(["fr", "ar"]),
-  timezone: z.string().trim().min(1),
   bio: z.string().trim().optional(),
   phone: z.string().trim().optional(),
   pageVariant: z.enum(["standard", "custom"]),
