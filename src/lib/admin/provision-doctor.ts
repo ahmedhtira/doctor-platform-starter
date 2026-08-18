@@ -1,9 +1,15 @@
+import { randomUUID } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/lib/supabase/database.types";
 import type { EmailSender } from "@/lib/email/send-email";
 import { sendAccountEmail } from "@/lib/email/send-account-email";
 import { AdminError } from "./admin-errors";
 
+export type ProvisionDoctorPhoto = {
+  body: ArrayBuffer;
+  contentType: "image/jpeg" | "image/png" | "image/webp";
+  extension: "jpg" | "png" | "webp";
+};
 export type ProvisionDoctorInput = {
   adminActorUserId: string;
   email: string;
@@ -14,6 +20,7 @@ export type ProvisionDoctorInput = {
   timezone: string;
   bio?: string;
   phone?: string;
+  photo?: ProvisionDoctorPhoto;
   pageVariant: "standard" | "custom";
   customTemplateKey?: string | null;
   clinic: { name: string; address: string; city?: string | null; timezone: string };
@@ -85,6 +92,8 @@ export async function provisionDoctor(
     throw new AdminError("EMAIL_ALREADY_REGISTERED", "This email is already registered.");
   }
 
+  let uploadedPhotoPath: string | null = null;
+
   try {
     const { data: doctor, error: doctorError } = await supabase
       .from("doctors")
@@ -117,6 +126,35 @@ export async function provisionDoctor(
         throw new AdminError("SLUG_TAKEN", "This URL slug is already in use.");
       }
       throw new AdminError("UNKNOWN", doctorError.message);
+    }
+    if (input.photo) {
+      const photoPath =
+        `${doctor.id}/${randomUUID()}.${input.photo.extension}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from("doctor-photos")
+        .upload(photoPath, input.photo.body, {
+          contentType: input.photo.contentType,
+          cacheControl: "31536000",
+          upsert: false,
+        });
+
+      if (uploadError) {
+        throw new AdminError("UNKNOWN", uploadError.message);
+      }
+
+      uploadedPhotoPath = photoPath;
+
+      const { error: photoUpdateError } = await supabase
+        .from("doctors")
+        .update({ photo_path: photoPath })
+        .eq("id", doctor.id);
+
+      if (photoUpdateError) {
+        throw new AdminError("UNKNOWN", photoUpdateError.message);
+      }
+
+      doctor.photo_path = photoPath;
     }
 
     const { data: clinic, error: clinicError } = await supabase
@@ -166,6 +204,11 @@ export async function provisionDoctor(
 
     return { doctor, authUserId };
   } catch (error) {
+    if (uploadedPhotoPath) {
+       await supabase.storage
+        .from("doctor-photos")
+        .remove([uploadedPhotoPath]);
+    }
     await supabase.from("doctors").delete().eq("user_id", authUserId);
     await supabase.auth.admin.deleteUser(authUserId).catch(() => undefined);
     throw error;
