@@ -49,7 +49,11 @@ export async function StandardDoctorPage({ locale, doctor }: DoctorTemplateProps
 
   return (
     <div>
-      <ProfileHero fullName={doctor.full_name} specialtyName={specialtyName} />
+      <ProfileHero
+        fullName={doctor.full_name}
+        specialtyName={specialtyName}
+        photoPath={doctor.photo_path}
+      />
 
       <div className="mx-auto grid max-w-5xl gap-10 px-4 py-12 sm:px-6 lg:grid-cols-[1fr_320px] lg:gap-14 lg:py-16">
         <div className="order-2 space-y-10 lg:order-1">
