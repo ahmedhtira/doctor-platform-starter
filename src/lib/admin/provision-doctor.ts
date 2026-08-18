@@ -84,7 +84,11 @@ export async function provisionDoctor(
   }
 
   const authUserId = linkData.user.id;
-  const actionLink = linkData.properties.action_link;
+
+  const actionLink =
+    `${input.redirectTo}?token_hash=${encodeURIComponent(
+      linkData.properties.hashed_token,
+    )}&type=invite`;
 
   // generateLink() does not error for an email that already has a
   // confirmed auth.users account -- verified against local Supabase, it
