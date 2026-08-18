@@ -571,6 +571,7 @@ export type Database = {
           suspended_at: string | null
           timezone: string
           user_id: string
+          photo_path: string | null
         }
         Insert: {
           bio?: string | null
@@ -589,6 +590,7 @@ export type Database = {
           suspended_at?: string | null
           timezone: string
           user_id: string
+          photo_path?: string | null
         }
         Update: {
           bio?: string | null
@@ -607,6 +609,7 @@ export type Database = {
           suspended_at?: string | null
           timezone?: string
           user_id?: string
+          photo_path?: string | null
         }
         Relationships: [
           {
