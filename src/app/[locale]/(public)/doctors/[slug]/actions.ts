@@ -90,7 +90,8 @@ return {
   success: true,
   appointment: result.appointment,
   managementToken: result.managementToken,
-}; catch (error) {
+};
+  } catch (error) {
     if (error instanceof BookingError) {
       return { success: false, errorCode: error.code, message: error.message };
     }
