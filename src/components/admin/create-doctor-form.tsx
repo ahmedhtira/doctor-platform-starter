@@ -1,6 +1,11 @@
 "use client";
 
-import { useState, useTransition, type FormEvent } from "react";
+import {
+  useState,
+  useTransition,
+  type ChangeEvent,
+  type FormEvent,
+} from "react";
 import { useTranslations } from "next-intl";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
@@ -53,6 +58,9 @@ export function CreateDoctorForm({
   const [timezone, setTimezone] = useState("Africa/Tunis");
   const [bio, setBio] = useState("");
   const [phone, setPhone] = useState("");
+  const [photo, setPhoto] = useState<File | null>(null);
+  const [photoPreview, setPhotoPreview] = useState<string | null>(null);
+  const [photoError, setPhotoError] = useState<string | null>(null);
   const [pageVariant, setPageVariant] = useState<"standard" | "custom">("standard");
   const [customTemplateKey, setCustomTemplateKey] = useState("");
 
@@ -90,29 +98,107 @@ export function CreateDoctorForm({
       current.includes(day) ? current.filter((d) => d !== day) : [...current, day].sort(),
     );
   }
+  function handlePhotoChange(event: ChangeEvent<HTMLInputElement>) {
+  const file = event.target.files?.[0] ?? null;
+
+  setPhotoError(null);
+
+  if (!file) {
+    setPhoto(null);
+    setPhotoPreview(null);
+    return;
+  }
+
+  const allowedTypes = ["image/jpeg", "image/png", "image/webp"];
+
+  if (!allowedTypes.includes(file.type)) {
+    setPhotoError("La photo doit être au format JPEG, PNG ou WebP.");
+    event.target.value = "";
+    return;
+  }
+
+  if (file.size > 2 * 1024 * 1024) {
+    setPhotoError("La photo ne doit pas dépasser 2 Mo.");
+    event.target.value = "";
+    return;
+  }
+
+  setPhoto(file);
+
+  const reader = new FileReader();
+
+  reader.onload = () => {
+    setPhotoPreview(typeof reader.result === "string" ? reader.result : null);
+  };
+
+  reader.readAsDataURL(file);
+}
+
+function removePhoto() {
+  setPhoto(null);
+  setPhotoPreview(null);
+  setPhotoError(null);
+
+  const input = document.getElementById("doctorPhoto") as HTMLInputElement | null;
+
+  if (input) {
+    input.value = "";
+  }
+}
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setError(null);
-    startTransition(async () => {
-      const result = await createDoctorAction({
-        email,
-        fullName,
-        specialtyId,
-        slug,
-        defaultLocale: locale,
+  event.preventDefault();
+  setError(null);
+
+  startTransition(async () => {
+    const payload = {
+      email,
+      fullName,
+      specialtyId,
+      slug,
+      defaultLocale: locale,
+      timezone,
+      bio: bio || undefined,
+      phone: phone || undefined,
+      pageVariant,
+      customTemplateKey:
+        pageVariant === "custom"
+          ? customTemplateKey || undefined
+          : undefined,
+      clinic: {
+        name: clinicName,
+        address: clinicAddress,
+        city: clinicCity || undefined,
         timezone,
-        bio: bio || undefined,
-        phone: phone || undefined,
-        pageVariant,
-        customTemplateKey: pageVariant === "custom" ? customTemplateKey || undefined : undefined,
-        clinic: { name: clinicName, address: clinicAddress, city: clinicCity || undefined, timezone },
-        appointmentTypeName,
-        appointmentTypeDurationMinutes: durationMinutes,
-        workingDays,
-        workingStartTime: startTime,
-        workingEndTime: endTime,
-      });
+      },
+      appointmentTypeName,
+      appointmentTypeDurationMinutes: durationMinutes,
+      workingDays,
+      workingStartTime: startTime,
+      workingEndTime: endTime,
+    };
+
+    const formData = new FormData();
+    formData.append("payload", JSON.stringify(payload));
+
+    if (photo) {
+      formData.append("photo", photo);
+    }
+
+    const result = await createDoctorAction(formData);
+
+    if (!result.success) {
+      setError(
+        result.errorCode === "VALIDATION_ERROR"
+          ? result.message
+          : errorMessageFor(t, result.errorCode),
+      );
+      return;
+    }
+
+    router.push("/admin");
+  });
+}
 
       if (!result.success) {
         setError(errorMessageFor(t, result.errorCode));
@@ -140,6 +226,55 @@ export function CreateDoctorForm({
             onChange={(e) => handleFullNameChange(e.target.value)}
           />
         </div>
+        <div className="flex flex-col gap-3">
+  <Label htmlFor="doctorPhoto">Photo du médecin</Label>
+
+  <div className="flex items-center gap-4">
+    <div className="bg-muted flex size-24 shrink-0 items-center justify-center overflow-hidden rounded-full border">
+      {photoPreview ? (
+        <img
+          src={photoPreview}
+          alt="Aperçu"
+          className="size-full object-cover"
+        />
+      ) : (
+        <span className="text-muted-foreground text-xs">
+          Photo
+        </span>
+      )}
+    </div>
+
+    <div className="flex flex-col gap-2">
+      <Input
+        id="doctorPhoto"
+        type="file"
+        accept="image/jpeg,image/png,image/webp"
+        onChange={handlePhotoChange}
+      />
+
+      <p className="text-muted-foreground text-xs">
+        JPEG, PNG ou WebP — maximum 2 Mo
+      </p>
+
+      {photo ? (
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={removePhoto}
+        >
+          Supprimer la photo
+        </Button>
+      ) : null}
+    </div>
+  </div>
+
+  {photoError ? (
+    <p className="text-destructive text-sm">
+      {photoError}
+    </p>
+  ) : null}
+</div>
         <div className="flex flex-col gap-2">
           <Label htmlFor="specialty">{t("specialtyLabel")}</Label>
           <select
