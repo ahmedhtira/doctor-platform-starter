@@ -200,15 +200,6 @@ function removePhoto() {
   });
 }
 
-      if (!result.success) {
-        setError(errorMessageFor(t, result.errorCode));
-        return;
-      }
-
-      router.push("/admin");
-    });
-  }
-
   return (
     <form className="flex flex-col gap-6" onSubmit={handleSubmit}>
       <section className="flex flex-col gap-4">
