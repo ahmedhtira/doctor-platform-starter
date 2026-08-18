@@ -37,12 +37,19 @@ export function SetPasswordForm() {
 
     startTransition(async () => {
       const supabase = createClient();
-      const { error: updateError } = await supabase.auth.updateUser({ password });
-      if (updateError) {
-        setError(t("errorGeneric"));
-        return;
-      }
-      router.push("/login");
+      const { error: updateError } = await supabase.auth.updateUser({
+  password,
+});
+
+if (updateError) {
+  setError(t("errorGeneric"));
+  return;
+}
+
+await supabase.auth.signOut();
+
+router.replace("/login");
+router.refresh();
     });
   }
 
