@@ -23,7 +23,18 @@ export type ProvisionDoctorInput = {
   photo?: ProvisionDoctorPhoto;
   pageVariant: "standard" | "custom";
   customTemplateKey?: string | null;
-  clinic: { name: string; address: string; city?: string | null; timezone: string };
+  clinic: {
+  name: string;
+  address: string;
+  city?: string | null;
+  location_type:
+    | "private_practice"
+    | "clinic"
+    | "hospital"
+    | "medical_center"
+    | "other";
+  timezone: string;
+};
   appointmentType: { name: string; durationMinutes: number };
   workingDays: number[];
   workingStartTime: string;
