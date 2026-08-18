@@ -336,9 +336,9 @@
       "doctors": "الأطباء"
     },
     "sectionDoctor": "الطبيب",
-"sectionLocation": "مكان الاستشارة",
-"sectionAppointment": "المواعيد",
-"sectionAdvanced": "خيارات متقدمة",
+    "sectionLocation": "مكان الاستشارة",
+    "sectionAppointment": "المواعيد",
+  "sectionAdvanced": "خيارات متقدمة",
 "doctorSectionHint": "المعلومات الأساسية لملف الطبيب.",
 "locationSectionHint": "أول مكان يستقبل فيه الطبيب المرضى.",
 "appointmentSectionHint": "الإعداد الأولي للاستشارات.",
@@ -363,7 +363,7 @@
 "dayThursday": "الخميس",
 "dayFriday": "الجمعة",
 "daySaturday": "السبت",
-"daySunday": "الأحد"
+"daySunday": "الأحد",
     "logout": "تسجيل الخروج",
     "doctorsTitle": "الأطباء",
     "doctorsEmpty": "لا يوجد أطباء حاليًا.",
@@ -392,7 +392,7 @@
     "sectionAccount": "الحساب",
     "sectionPage": "الصفحة العامة",
     "sectionClinic": "مكان الاستشارة",
-    "clinicNameLabel": "اسم المكان"
+    "clinicNameLabel": "اسم المكان",
     "sectionSchedule": "أوقات العمل",
     "emailLabel": "البريد الإلكتروني",
     "fullNameLabel": "الاسم الكامل",
