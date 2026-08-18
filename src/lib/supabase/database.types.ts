@@ -349,6 +349,7 @@ export type Database = {
           id: string
           name: string
           timezone: string
+          location_type: string
         }
         Insert: {
           address: string
@@ -358,6 +359,7 @@ export type Database = {
           id?: string
           name: string
           timezone: string
+          location_type?: string
         }
         Update: {
           address?: string
@@ -367,6 +369,7 @@ export type Database = {
           id?: string
           name?: string
           timezone?: string
+          location_type?: string
         }
         Relationships: [
           {
