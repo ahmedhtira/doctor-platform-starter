@@ -37,12 +37,17 @@ export async function requestPasswordResetAction(input: unknown): Promise<Reques
       options: { redirectTo },
     });
 
-    if (!error && data.properties?.action_link) {
+    if (!error && data.properties?.hashed_token) {
+      const actionLink =
+        `${redirectTo}?token_hash=${encodeURIComponent(
+          data.properties.hashed_token,
+        )}&type=recovery`;
+
       const sendResult = await sendAccountEmail(createResendSender(), {
         template: "password_reset",
         locale,
         to: parsed.data.email,
-        actionLink: data.properties.action_link,
+        actionLink,
       });
       if (!sendResult.success) {
         console.error("requestPasswordResetAction: send failed", sendResult.error);
