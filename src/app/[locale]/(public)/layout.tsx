@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import Image from "next/image";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { Link } from "@/i18n/navigation";
 import { LocaleSwitcher } from "@/components/locale-switcher";
 
@@ -10,6 +10,7 @@ import { LocaleSwitcher } from "@/components/locale-switcher";
 // below (see PROJECT_SPEC.md M2.5).
 export default function PublicLayout({ children }: { children: ReactNode }) {
   const t = useTranslations();
+  const locale = useLocale();
 
   return (
     <>
@@ -36,12 +37,20 @@ export default function PublicLayout({ children }: { children: ReactNode }) {
             <span aria-hidden> · </span>
             {t("common.tagline")}
           </p>
-          <Link
-            href="/login"
-            className="text-muted-foreground hover:text-foreground underline-offset-4 transition-colors hover:underline"
-          >
-            {t("nav.staffPortal")}
-          </Link>
+          <div className="flex items-center gap-4">
+            <Link
+              href="/privacy"
+              className="text-muted-foreground hover:text-foreground underline-offset-4 transition-colors hover:underline"
+            >
+              {locale === "ar" ? "سياسة الخصوصية" : "Confidentialité"}
+            </Link>
+            <Link
+              href="/login"
+              className="text-muted-foreground hover:text-foreground underline-offset-4 transition-colors hover:underline"
+            >
+              {t("nav.staffPortal")}
+            </Link>
+          </div>
         </div>
       </footer>
     </>
