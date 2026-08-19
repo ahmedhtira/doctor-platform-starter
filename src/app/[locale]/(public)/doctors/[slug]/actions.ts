@@ -16,6 +16,8 @@ import { BookingError, type BookingErrorCode } from "@/lib/booking/booking-error
 // (createServiceRoleClient / getAvailableSlots's own internal one); the
 // booking widget never talks to Supabase directly.
 
+const PRIVACY_POLICY_VERSION = "2026-08-19";
+
 const getSlotsInputSchema = z.object({
   doctorId: z.uuid(),
   clinicId: z.uuid(),
@@ -78,12 +80,12 @@ export async function submitBookingAction(input: unknown): Promise<SubmitBooking
   const supabase = createServiceRoleClient();
 
   try {
-    const {
-      privacyConsent: _privacyConsent,
-      adultConfirmation: _adultConfirmation,
-      ...bookingInput
-    } = parsed.data;
-    const result = await bookAppointment(supabase, bookingInput);
+    const { privacyConsent, adultConfirmation, ...bookingInput } = parsed.data;
+    const result = await bookAppointment(supabase, bookingInput, {
+      privacyConsent,
+      adultConfirmation,
+      privacyPolicyVersion: PRIVACY_POLICY_VERSION,
+    });
 
     after(async () => {
       try {
