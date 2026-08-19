@@ -60,10 +60,10 @@ export async function bookAppointment(
   let error: { code: string; message: string } | null;
 
   if (publicConsent) {
-    // database.types.ts is generated from the currently deployed schema.
-    // This new RPC is introduced by the same launch migration, so keep the
-    // temporary cast local until types are regenerated after deployment.
-    const publicBookingRpc = supabase.rpc as unknown as (
+    // Keep the Supabase client bound as `this`. SupabaseClient.rpc() reads
+    // `this.rest`, so extracting the method and calling it unbound crashes
+    // at runtime even though the cast itself type-checks.
+    const publicBookingRpc = supabase.rpc.bind(supabase) as unknown as (
       fn: "book_public_appointment",
       args: {
         p_doctor_id: string;
