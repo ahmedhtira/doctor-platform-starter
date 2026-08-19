@@ -6,49 +6,83 @@ import { cookies } from "next/headers";
 import type { Database } from "./database.types";
 import { getSupabaseAnonKey, getSupabaseUrl } from "./env";
 
-const JWT_CLOCK_SKEW_RETRY_DELAY_MS = 1000;
+const SUPABASE_ORIGIN = new URL(getSupabaseUrl()).origin;
+
+// Total maximum wait: 5 seconds.
+// Only used for the exact transient "JWT issued at future" failure.
+const JWT_CLOCK_SKEW_RETRY_DELAYS_MS = [250, 750, 1500, 2500] as const;
+
+function isSafeRetryableDataRequest(request: Request) {
+  const url = new URL(request.url);
+
+  return (
+    (request.method === "GET" || request.method === "HEAD") &&
+    url.origin === SUPABASE_ORIGIN &&
+    url.pathname.startsWith("/rest/v1/")
+  );
+}
+
+async function isJwtIssuedAtFutureResponse(
+  response: Response,
+): Promise<boolean> {
+  if (response.status !== 401) {
+    return false;
+  }
+
+  const body = await response
+    .clone()
+    .text()
+    .catch(() => "");
+
+  return body.includes("JWT issued at future");
+}
 
 async function fetchWithJwtClockSkewRetry(
   input: RequestInfo | URL,
   init?: RequestInit,
 ): Promise<Response> {
   const request = new Request(input, init);
-  const response = await fetch(request.clone());
 
-  // Never retry mutations or unrelated Supabase requests.
-  if (
-    (request.method !== "GET" && request.method !== "HEAD") ||
-    response.status !== 401 ||
-    !new URL(request.url).pathname.startsWith("/rest/v1/")
-  ) {
+  let response = await fetch(request.clone());
+
+  // Never retry mutations, Auth requests, Storage requests,
+  // unrelated hosts, or ordinary permission/session failures.
+  if (!isSafeRetryableDataRequest(request)) {
     return response;
   }
 
-  const payload = (await response
-    .clone()
-    .json()
-    .catch(() => null)) as
-    | {
-        code?: unknown;
-        message?: unknown;
-      }
-    | null;
-
-  // A freshly issued Supabase JWT can very briefly be considered
-  // "from the future" by PostgREST if clocks differ slightly.
-  // Retry this one known transient failure exactly once.
-  if (
-    payload?.code !== "PGRST303" ||
-    payload?.message !== "JWT issued at future"
+  for (
+    let attempt = 0;
+    attempt < JWT_CLOCK_SKEW_RETRY_DELAYS_MS.length;
+    attempt += 1
   ) {
-    return response;
+    if (!(await isJwtIssuedAtFutureResponse(response))) {
+      return response;
+    }
+
+    const delayMs = JWT_CLOCK_SKEW_RETRY_DELAYS_MS[attempt];
+
+    console.warn("supabase: retrying transient JWT clock-skew failure", {
+      attempt: attempt + 1,
+      delayMs,
+      path: new URL(request.url).pathname,
+    });
+
+    await new Promise((resolve) => setTimeout(resolve, delayMs));
+
+    response = await fetch(request.clone());
   }
 
-  await new Promise((resolve) =>
-    setTimeout(resolve, JWT_CLOCK_SKEW_RETRY_DELAY_MS),
-  );
+  // If Supabase is still rejecting the token after the bounded retries,
+  // return the genuine final response instead of masking a persistent issue.
+  if (await isJwtIssuedAtFutureResponse(response)) {
+    console.error("supabase: JWT clock-skew retries exhausted", {
+      retries: JWT_CLOCK_SKEW_RETRY_DELAYS_MS.length,
+      path: new URL(request.url).pathname,
+    });
+  }
 
-  return fetch(request.clone());
+  return response;
 }
 
 /**
@@ -66,10 +100,12 @@ export async function createClient() {
       global: {
         fetch: fetchWithJwtClockSkewRetry,
       },
+
       cookies: {
         getAll() {
           return cookieStore.getAll();
         },
+
         setAll(cookiesToSet) {
           try {
             for (const { name, value, options } of cookiesToSet) {
@@ -77,7 +113,7 @@ export async function createClient() {
             }
           } catch {
             // Called from a Server Component without a mutable response —
-            // safe to ignore as long as middleware also refreshes the session.
+            // safe to ignore as long as Proxy also refreshes the session.
           }
         },
       },
