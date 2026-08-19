@@ -6,6 +6,7 @@ import { processEmailOutbox } from "@/lib/email/process-email-outbox";
 import { cookies } from "next/headers";
 import { z } from "zod";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
+import { consumeRateLimit } from "@/lib/security/rate-limit";
 import { getAvailableSlots } from "@/lib/availability/get-available-slots";
 import type { AvailableSlot } from "@/lib/availability/compute-available-slots";
 import { managementTokenPattern } from "@/lib/booking/generate-management-token";
@@ -31,6 +32,8 @@ import type { BookedAppointment } from "@/lib/booking/book-appointment";
 // cookie's raw secret and threads that hash through — never the raw
 // secret itself, and never appointment_management_sessions.id. See
 // manage-session-cookie.ts for why.
+
+const MANAGE_REDEEM_RATE_LIMIT_WINDOW_SECONDS = 10 * 60;
 
 async function readManagementSessionSecretHash(): Promise<string | null> {
   const cookieStore = await cookies();
@@ -64,6 +67,19 @@ export async function redeemManagementTokenAction(
   const supabase = createServiceRoleClient();
 
   try {
+    const allowed = await consumeRateLimit(supabase, {
+      scope: "manage-token-redeem",
+      limit: 20,
+      windowSeconds: MANAGE_REDEEM_RATE_LIMIT_WINDOW_SECONDS,
+    });
+    if (!allowed) {
+      return {
+        success: false,
+        errorCode: "INVALID_OR_EXPIRED_TOKEN",
+        message: "Invalid or expired link.",
+      };
+    }
+
     const { session, sessionSecret } = await redeemManagementToken(supabase, parsed.data.rawToken);
     const maxAgeSeconds = Math.max(
       0,
@@ -80,13 +96,17 @@ export async function redeemManagementTokenAction(
     return { success: true };
   } catch (error) {
     if (error instanceof ManageError) {
-      return { success: false, errorCode: "INVALID_OR_EXPIRED_TOKEN", message: error.message };
+      return {
+        success: false,
+        errorCode: "INVALID_OR_EXPIRED_TOKEN",
+        message: "Invalid or expired link.",
+      };
     }
     console.error("redeemManagementTokenAction: unexpected error", error);
     return {
       success: false,
       errorCode: "UNKNOWN",
-      message: error instanceof Error ? error.message : "Unknown error.",
+      message: "Unable to open this management link. Please try again.",
     };
   }
 }
@@ -107,37 +127,37 @@ export async function cancelManagedAppointmentAction(): Promise<CancelManagedApp
   const supabase = createServiceRoleClient();
 
   try {
-  await cancelManagedAppointment(supabase, secretHash);
+    await cancelManagedAppointment(supabase, secretHash);
 
-  after(async () => {
-    try {
-      await processEmailOutbox(
-        createServiceRoleClient(),
-        createResendSender(),
-        { limit: 20 },
-      );
-    } catch (error) {
-      console.error(
-        "cancelManagedAppointmentAction: email outbox processing failed",
-        error,
-      );
-    }
-  });
+    after(async () => {
+      try {
+        await processEmailOutbox(
+          createServiceRoleClient(),
+          createResendSender(),
+          { limit: 20 },
+        );
+      } catch (error) {
+        console.error(
+          "cancelManagedAppointmentAction: email outbox processing failed",
+          error,
+        );
+      }
+    });
 
-  return { success: true };
-} catch (error) {
+    return { success: true };
+  } catch (error) {
     if (error instanceof ManageError) {
       return {
         success: false,
         errorCode: error.code as ManageActionErrorCode,
-        message: error.message,
+        message: "Unable to cancel this appointment.",
       };
     }
     console.error("cancelManagedAppointmentAction: unexpected error", error);
     return {
       success: false,
       errorCode: "UNKNOWN",
-      message: error instanceof Error ? error.message : "Unknown error.",
+      message: "Unable to cancel this appointment.",
     };
   }
 }
@@ -174,20 +194,22 @@ export async function rescheduleManagedAppointmentAction(
       managementSessionSecretHash: secretHash,
       newStartsAt: parsed.data.newStartsAt,
     });
+
     after(async () => {
-  try {
-    await processEmailOutbox(
-      createServiceRoleClient(),
-      createResendSender(),
-      { limit: 20 },
-    );
-  } catch (error) {
-    console.error(
-      "rescheduleManagedAppointmentAction: email outbox processing failed",
-      error,
-    );
-  }
-});
+      try {
+        await processEmailOutbox(
+          createServiceRoleClient(),
+          createResendSender(),
+          { limit: 20 },
+        );
+      } catch (error) {
+        console.error(
+          "rescheduleManagedAppointmentAction: email outbox processing failed",
+          error,
+        );
+      }
+    });
+
     return {
       success: true,
       appointment: result.appointment,
@@ -198,14 +220,14 @@ export async function rescheduleManagedAppointmentAction(
       return {
         success: false,
         errorCode: error.code as ManageActionErrorCode,
-        message: error.message,
+        message: "Unable to reschedule this appointment.",
       };
     }
     console.error("rescheduleManagedAppointmentAction: unexpected error", error);
     return {
       success: false,
       errorCode: "UNKNOWN",
-      message: error instanceof Error ? error.message : "Unknown error.",
+      message: "Unable to reschedule this appointment.",
     };
   }
 }
@@ -249,6 +271,6 @@ export async function getManageSlotsAction(localDate: unknown): Promise<GetManag
     return { success: true, slots };
   } catch (error) {
     console.error("getManageSlotsAction: unexpected error", error);
-    return { success: false, message: error instanceof Error ? error.message : "Unknown error." };
+    return { success: false, message: "Unable to load available slots." };
   }
 }
