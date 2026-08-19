@@ -13,31 +13,64 @@ export async function GET(
 ) {
   const { locale } = await params;
 
+  const safeLocale = locale === "ar" ? "ar" : "fr";
+
   const tokenHash = request.nextUrl.searchParams.get("token_hash");
   const type = request.nextUrl.searchParams.get("type");
 
   if (!tokenHash || (type !== "invite" && type !== "recovery")) {
     return NextResponse.redirect(
       new URL(
-        `/${locale}/login?authError=invalid_link`,
+        `/${safeLocale}/login?authError=invalid_link`,
         request.url,
       ),
       303,
     );
   }
 
+  const destination = `/${safeLocale}/auth/set-password`;
+
   /*
-   * Important:
-   * The response that receives Supabase's auth cookies must be the SAME
-   * response returned to the browser.
+   * We intentionally do NOT immediately HTTP-redirect after verifyOtp().
    *
-   * Previously we used the shared server client and then created a separate
-   * redirect response. That can make the browser/server auth state briefly
-   * disagree during the first redirect after verifyOtp().
+   * The recovery response first reaches the browser as a normal 200
+   * document carrying Supabase's Set-Cookie headers. Once those cookies
+   * are committed, the browser performs a fresh navigation to the
+   * set-password page.
+   *
+   * This avoids the failing first-load handoff observed in production,
+   * while keeping the token hash out of the destination URL.
    */
-  const response = NextResponse.redirect(
-    new URL(`/${locale}/auth/set-password`, request.url),
-    303,
+  const response = new NextResponse(
+    `<!doctype html>
+<html lang="${safeLocale}">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="robots" content="noindex,nofollow" />
+    <meta name="referrer" content="no-referrer" />
+    <meta http-equiv="refresh" content="0;url=${destination}" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Dewini</title>
+  </head>
+  <body>
+    <p>
+      ${
+        safeLocale === "ar"
+          ? `جارٍ المتابعة… <a href="${destination}">متابعة</a>`
+          : `Redirection en cours… <a href="${destination}">Continuer</a>`
+      }
+    </p>
+  </body>
+</html>`,
+    {
+      status: 200,
+      headers: {
+        "Content-Type": "text/html; charset=utf-8",
+        "Cache-Control": "no-store, max-age=0",
+        "Referrer-Policy": "no-referrer",
+        "X-Robots-Tag": "noindex, nofollow",
+      },
+    },
   );
 
   const supabase = createServerClient<Database>(
@@ -74,12 +107,12 @@ export async function GET(
       status: error.status,
     });
 
-    response.headers.set(
-      "location",
+    return NextResponse.redirect(
       new URL(
-        `/${locale}/login?authError=invalid_or_expired`,
+        `/${safeLocale}/login?authError=invalid_or_expired`,
         request.url,
-      ).toString(),
+      ),
+      303,
     );
   }
 
