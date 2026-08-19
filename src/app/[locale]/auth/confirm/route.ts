@@ -23,8 +23,16 @@ export async function GET(request: Request, { params }: { params: Promise<{ loca
   const { error } = await supabase.auth.verifyOtp({ type, token_hash: tokenHash });
 
   if (error) {
-    return NextResponse.redirect(new URL(`/${locale}/login?authError=invalid_or_expired`, request.url));
-  }
+  console.warn("auth/confirm: OTP verification failed", {
+    type,
+    code: error.code,
+    status: error.status,
+  });
+
+  return NextResponse.redirect(
+    new URL(`/${locale}/login?authError=invalid_or_expired`, request.url),
+  );
+}
 
   return NextResponse.redirect(new URL(`/${locale}/auth/set-password`, request.url));
 }
