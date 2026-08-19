@@ -1,38 +1,87 @@
-import { NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { createServerClient } from "@supabase/ssr";
+import { NextResponse, type NextRequest } from "next/server";
 
-// Redemption endpoint for both the doctor-invite and password-reset
-// links (M10) — Supabase's link flow is PKCE-based: visiting the link
-// lands here with token_hash+type query params, no session yet.
-// verifyOtp() exchanges it for a real session (cookie-bound client, so
-// this must be a Route Handler with a mutable response — server.ts's own
-// comment already notes cookie writes are unreliable from a plain Server
-// Component render). Only after that does /auth/set-password's
-// client-side updateUser({password}) call actually set the password.
-export async function GET(request: Request, { params }: { params: Promise<{ locale: string }> }) {
+import type { Database } from "@/lib/supabase/database.types";
+import {
+  getSupabaseAnonKey,
+  getSupabaseUrl,
+} from "@/lib/supabase/env";
+
+export async function GET(
+  request: NextRequest,
+  { params }: { params: Promise<{ locale: string }> },
+) {
   const { locale } = await params;
-  const url = new URL(request.url);
-  const tokenHash = url.searchParams.get("token_hash");
-  const type = url.searchParams.get("type");
+
+  const tokenHash = request.nextUrl.searchParams.get("token_hash");
+  const type = request.nextUrl.searchParams.get("type");
 
   if (!tokenHash || (type !== "invite" && type !== "recovery")) {
-    return NextResponse.redirect(new URL(`/${locale}/login?authError=invalid_link`, request.url));
+    return NextResponse.redirect(
+      new URL(
+        `/${locale}/login?authError=invalid_link`,
+        request.url,
+      ),
+      303,
+    );
   }
 
-  const supabase = await createClient();
-  const { error } = await supabase.auth.verifyOtp({ type, token_hash: tokenHash });
+  /*
+   * Important:
+   * The response that receives Supabase's auth cookies must be the SAME
+   * response returned to the browser.
+   *
+   * Previously we used the shared server client and then created a separate
+   * redirect response. That can make the browser/server auth state briefly
+   * disagree during the first redirect after verifyOtp().
+   */
+  const response = NextResponse.redirect(
+    new URL(`/${locale}/auth/set-password`, request.url),
+    303,
+  );
 
-  if (error) {
-  console.warn("auth/confirm: OTP verification failed", {
+  const supabase = createServerClient<Database>(
+    getSupabaseUrl(),
+    getSupabaseAnonKey(),
+    {
+      cookies: {
+        getAll() {
+          return request.cookies.getAll();
+        },
+
+        setAll(cookiesToSet, headers) {
+          for (const { name, value, options } of cookiesToSet) {
+            response.cookies.set(name, value, options);
+          }
+
+          for (const [name, value] of Object.entries(headers ?? {})) {
+            response.headers.set(name, String(value));
+          }
+        },
+      },
+    },
+  );
+
+  const { error } = await supabase.auth.verifyOtp({
     type,
-    code: error.code,
-    status: error.status,
+    token_hash: tokenHash,
   });
 
-  return NextResponse.redirect(
-    new URL(`/${locale}/login?authError=invalid_or_expired`, request.url),
-  );
-}
+  if (error) {
+    console.warn("auth/confirm: OTP verification failed", {
+      type,
+      code: error.code,
+      status: error.status,
+    });
 
-  return NextResponse.redirect(new URL(`/${locale}/auth/set-password`, request.url));
+    response.headers.set(
+      "location",
+      new URL(
+        `/${locale}/login?authError=invalid_or_expired`,
+        request.url,
+      ).toString(),
+    );
+  }
+
+  return response;
 }
