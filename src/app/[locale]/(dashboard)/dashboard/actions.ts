@@ -1,5 +1,8 @@
 "use server";
 
+import { after } from "next/server";
+import { createResendSender } from "@/lib/email/resend-sender";
+import { processEmailOutbox } from "@/lib/email/process-email-outbox";
 import { z } from "zod";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
 import { getAuthenticatedUser } from "@/lib/dashboard/auth-context";
@@ -59,6 +62,20 @@ export async function cancelAppointmentAction(input: unknown): Promise<CancelApp
     const appointment = await cancelStaffAppointment(supabase, {
       appointmentId: parsed.data.appointmentId,
       actorUserId: actor.actorUserId,
+    });
+    after(async () => {
+      try {
+        await processEmailOutbox(
+          createServiceRoleClient(),
+          createResendSender(),
+          { limit: 20 },
+        );
+      } catch (error) {
+        console.error(
+          "cancelAppointmentAction: email outbox processing failed",
+           error,
+        );
+      }
     });
     return { success: true, appointment };
   } catch (error) {
@@ -183,6 +200,20 @@ export async function rescheduleAppointmentAction(
       actorUserId: actor.actorUserId,
       newStartsAt: parsed.data.newStartsAt,
     });
+    after(async () => {
+  try {
+    await processEmailOutbox(
+      createServiceRoleClient(),
+      createResendSender(),
+      { limit: 20 },
+    );
+  } catch (error) {
+    console.error(
+      "rescheduleAppointmentAction: email outbox processing failed",
+      error,
+    );
+  }
+});
     return {
       success: true,
       appointment: result.appointment,
