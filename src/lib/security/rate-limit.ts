@@ -45,9 +45,10 @@ export async function consumeRateLimit(
     .update(`${options.scope}\u0000${clientIp}\u0000${discriminator}`)
     .digest("hex");
 
-  // The RPC is introduced by the same launch migration. Keep the cast local
-  // until database.types.ts is regenerated after the migration is deployed.
-  const consumeRateLimitRpc = supabase.rpc as unknown as (
+  // Keep the Supabase client bound as `this`. SupabaseClient.rpc() reads
+  // `this.rest`, so extracting the method and calling it unbound crashes at
+  // runtime even though TypeScript accepts the cast.
+  const consumeRateLimitRpc = supabase.rpc.bind(supabase) as unknown as (
     fn: "consume_rate_limit",
     args: {
       p_bucket_key: string;
