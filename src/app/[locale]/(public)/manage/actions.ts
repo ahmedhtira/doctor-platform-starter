@@ -1,5 +1,8 @@
 "use server";
 
+import { after } from "next/server";
+import { createResendSender } from "@/lib/email/resend-sender";
+import { processEmailOutbox } from "@/lib/email/process-email-outbox";
 import { cookies } from "next/headers";
 import { z } from "zod";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
@@ -114,6 +117,20 @@ export async function cancelManagedAppointmentAction(): Promise<CancelManagedApp
         message: error.message,
       };
     }
+    after(async () => {
+  try {
+    await processEmailOutbox(
+      createServiceRoleClient(),
+      createResendSender(),
+      { limit: 20 },
+    );
+  } catch (error) {
+    console.error(
+      "cancelManagedAppointmentAction: email outbox processing failed",
+      error,
+    );
+  }
+});
     console.error("cancelManagedAppointmentAction: unexpected error", error);
     return {
       success: false,
@@ -155,6 +172,20 @@ export async function rescheduleManagedAppointmentAction(
       managementSessionSecretHash: secretHash,
       newStartsAt: parsed.data.newStartsAt,
     });
+    after(async () => {
+  try {
+    await processEmailOutbox(
+      createServiceRoleClient(),
+      createResendSender(),
+      { limit: 20 },
+    );
+  } catch (error) {
+    console.error(
+      "rescheduleManagedAppointmentAction: email outbox processing failed",
+      error,
+    );
+  }
+});
     return {
       success: true,
       appointment: result.appointment,
