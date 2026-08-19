@@ -32,8 +32,13 @@ export async function loginAction(input: unknown): Promise<LoginResult> {
   });
 
   if (error) {
-    return { success: false, message: "INVALID_CREDENTIALS" };
-  }
+  console.warn("loginAction: Supabase sign-in failed", {
+    code: error.code,
+    status: error.status,
+  });
+
+  return { success: false, message: "INVALID_CREDENTIALS" };
+}
 
   return redirect({
     href: resolvePostAuthRedirectHref(data.user?.id),
