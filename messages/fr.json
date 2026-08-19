@@ -46,6 +46,8 @@
     }
   },
   "login": {
+    "showPassword": "Afficher le mot de passe",
+    "hidePassword": "Masquer le mot de passe"
     "title": "Connexion",
     "description": "Accès réservé aux médecins et secrétaires.",
     "emailLabel": "Adresse e-mail",
@@ -71,7 +73,15 @@
     "confirmPasswordLabel": "Confirmer le mot de passe",
     "submit": "Enregistrer",
     "submitting": "Enregistrement…",
-    "errorTooShort": "Le mot de passe doit contenir au moins 8 caractères.",
+    "errorTooShort": "Le mot de passe doit contenir au moins 10 caractères.",
+    "errorWeak": "Le mot de passe doit respecter toutes les règles ci-dessous.",
+    "showPassword": "Afficher le mot de passe",
+    "hidePassword": "Masquer le mot de passe",
+    "ruleLength": "Au moins 10 caractères",
+    "ruleLowercase": "Une lettre minuscule",
+    "ruleUppercase": "Une lettre majuscule",
+    "ruleNumber": "Un chiffre",
+    "ruleSymbol": "Un symbole"
     "errorMismatch": "Les mots de passe ne correspondent pas.",
     "errorGeneric": "Une erreur est survenue. Veuillez réessayer."
   },
