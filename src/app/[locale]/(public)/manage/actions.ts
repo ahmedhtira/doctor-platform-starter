@@ -107,9 +107,25 @@ export async function cancelManagedAppointmentAction(): Promise<CancelManagedApp
   const supabase = createServiceRoleClient();
 
   try {
-    await cancelManagedAppointment(supabase, secretHash);
-    return { success: true };
-  } catch (error) {
+  await cancelManagedAppointment(supabase, secretHash);
+
+  after(async () => {
+    try {
+      await processEmailOutbox(
+        createServiceRoleClient(),
+        createResendSender(),
+        { limit: 20 },
+      );
+    } catch (error) {
+      console.error(
+        "cancelManagedAppointmentAction: email outbox processing failed",
+        error,
+      );
+    }
+  });
+
+  return { success: true };
+} catch (error) {
     if (error instanceof ManageError) {
       return {
         success: false,
@@ -117,20 +133,6 @@ export async function cancelManagedAppointmentAction(): Promise<CancelManagedApp
         message: error.message,
       };
     }
-    after(async () => {
-  try {
-    await processEmailOutbox(
-      createServiceRoleClient(),
-      createResendSender(),
-      { limit: 20 },
-    );
-  } catch (error) {
-    console.error(
-      "cancelManagedAppointmentAction: email outbox processing failed",
-      error,
-    );
-  }
-});
     console.error("cancelManagedAppointmentAction: unexpected error", error);
     return {
       success: false,
