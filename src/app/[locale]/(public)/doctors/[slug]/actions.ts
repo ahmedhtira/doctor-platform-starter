@@ -23,6 +23,13 @@ const getSlotsInputSchema = z.object({
   localDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
 });
 
+const publicBookingSchema = bookingSchema.and(
+  z.object({
+    privacyConsent: z.literal(true),
+    adultConfirmation: z.literal(true),
+  }),
+);
+
 export type GetSlotsResult = { success: true; slots: AvailableSlot[] } | { success: false; message: string };
 
 export async function getSlotsAction(input: unknown): Promise<GetSlotsResult> {
@@ -42,7 +49,7 @@ export async function getSlotsAction(input: unknown): Promise<GetSlotsResult> {
     return { success: true, slots };
   } catch (error) {
     console.error("getSlotsAction: unexpected error", error);
-    return { success: false, message: error instanceof Error ? error.message : "Unknown error." };
+    return { success: false, message: "Unable to load available slots." };
   }
 }
 
@@ -56,41 +63,41 @@ export type SubmitBookingResult =
     };
 
 export async function submitBookingAction(input: unknown): Promise<SubmitBookingResult> {
-  const parsed = bookingSchema.safeParse(input);
+  const parsed = publicBookingSchema.safeParse(input);
   if (!parsed.success) {
     return {
       success: false,
       errorCode: "VALIDATION_ERROR",
       message: "Some fields are invalid.",
-      fieldErrors: parsed.error.flatten().fieldErrors,
+      fieldErrors: parsed.error.flatten().fieldErrors as Partial<
+        Record<keyof BookingInput, string[]>
+      >,
     };
   }
 
   const supabase = createServiceRoleClient();
 
   try {
-    const result = await bookAppointment(supabase, parsed.data);
+    const {
+      privacyConsent: _privacyConsent,
+      adultConfirmation: _adultConfirmation,
+      ...bookingInput
+    } = parsed.data;
+    const result = await bookAppointment(supabase, bookingInput);
 
-after(async () => {
-  try {
-    await processEmailOutbox(
-      createServiceRoleClient(),
-      createResendSender(),
-      { limit: 20 },
-    );
-  } catch (error) {
-    console.error(
-      "submitBookingAction: email outbox processing failed",
-      error,
-    );
-  }
-});
+    after(async () => {
+      try {
+        await processEmailOutbox(createServiceRoleClient(), createResendSender(), { limit: 20 });
+      } catch (error) {
+        console.error("submitBookingAction: email outbox processing failed", error);
+      }
+    });
 
-return {
-  success: true,
-  appointment: result.appointment,
-  managementToken: result.managementToken,
-};
+    return {
+      success: true,
+      appointment: result.appointment,
+      managementToken: result.managementToken,
+    };
   } catch (error) {
     if (error instanceof BookingError) {
       return { success: false, errorCode: error.code, message: error.message };
@@ -99,7 +106,7 @@ return {
     return {
       success: false,
       errorCode: "UNKNOWN",
-      message: error instanceof Error ? error.message : "Unknown error.",
+      message: "Unable to complete the booking. Please try again.",
     };
   }
 }
