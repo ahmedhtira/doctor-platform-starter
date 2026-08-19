@@ -47,7 +47,7 @@
   },
   "login": {
     "showPassword": "إظهار كلمة المرور",
-    "hidePassword": "إخفاء كلمة المرور"
+    "hidePassword": "إخفاء كلمة المرور",
     "title": "تسجيل الدخول",
     "description": "الوصول مخصص للأطباء والسكرتارية.",
     "emailLabel": "البريد الإلكتروني",
@@ -75,7 +75,7 @@
     "ruleLowercase": "حرف صغير واحد",
     "ruleUppercase": "حرف كبير واحد",
     "ruleNumber": "رقم واحد",
-    "ruleSymbol": "رمز واحد"
+    "ruleSymbol": "رمز واحد",
     "title": "اختيار كلمة المرور",
     "description": "اختر كلمة مرور للوصول إلى مساحتك الخاصة.",
     "passwordLabel": "كلمة المرور الجديدة",
