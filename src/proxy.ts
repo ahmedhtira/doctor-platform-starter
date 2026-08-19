@@ -7,12 +7,22 @@ import type { Database } from "./lib/supabase/database.types";
 import { getSupabaseAnonKey, getSupabaseUrl } from "./lib/supabase/env";
 
 const handleI18nRouting = createMiddleware(routing);
+function isAuthSessionHandoff(pathname: string) {
+  return (
+    pathname.endsWith("/auth/confirm") ||
+    pathname.endsWith("/auth/set-password")
+  );
+}
 
 export default async function proxy(request: NextRequest) {
   // Supabase may refresh/replace auth cookies while validating the session.
   // We mutate the incoming request immediately so Server Components see
   // the refreshed session, then apply the same cookie/header changes to
   // next-intl's final response.
+  if (isAuthSessionHandoff(request.nextUrl.pathname)) {
+    return handleI18nRouting(request);
+  }
+
   const authMutations: Array<(response: NextResponse) => void> = [];
 
   const supabase = createServerClient<Database>(
