@@ -82,7 +82,6 @@
     "confirmPasswordLabel": "تأكيد كلمة المرور",
     "submit": "حفظ",
     "submitting": "جارٍ الحفظ…",
-    "errorTooShort": "يجب أن تتكون كلمة المرور من 8 أحرف على الأقل.",
     "errorMismatch": "كلمتا المرور غير متطابقتين.",
     "errorGeneric": "حدث خطأ. يرجى المحاولة مرة أخرى."
   },
