@@ -47,7 +47,7 @@
   },
   "login": {
     "showPassword": "Afficher le mot de passe",
-    "hidePassword": "Masquer le mot de passe"
+    "hidePassword": "Masquer le mot de passe",
     "title": "Connexion",
     "description": "Accès réservé aux médecins et secrétaires.",
     "emailLabel": "Adresse e-mail",
@@ -81,7 +81,7 @@
     "ruleLowercase": "Une lettre minuscule",
     "ruleUppercase": "Une lettre majuscule",
     "ruleNumber": "Un chiffre",
-    "ruleSymbol": "Un symbole"
+    "ruleSymbol": "Un symbole",
     "errorMismatch": "Les mots de passe ne correspondent pas.",
     "errorGeneric": "Une erreur est survenue. Veuillez réessayer."
   },
