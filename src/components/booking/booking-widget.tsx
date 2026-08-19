@@ -47,11 +47,6 @@ export function BookingWidget({
   const [slots, setSlots] = useState<AvailableSlot[]>([]);
   const [slotsLoading, startSlotsTransition] = useTransition();
   const [rawSelectedSlotStart, setRawSelectedSlotStart] = useState<string | null>(null);
-  // Derived rather than imperatively cleared: a previously-clicked slot
-  // stops counting as "selected" the moment it's no longer in the current
-  // `slots` list — after a date/clinic/type change, or after the server
-  // rejects it and refreshSlots() drops it from the list. No effect needs
-  // to reset state for this to work.
   const selectedSlotStart =
     rawSelectedSlotStart !== null && slots.some((slot) => slot.slotStart === rawSelectedSlotStart)
       ? rawSelectedSlotStart
@@ -60,6 +55,8 @@ export function BookingWidget({
   const [fullName, setFullName] = useState("");
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
+  const [privacyConsent, setPrivacyConsent] = useState(false);
+  const [adultConfirmation, setAdultConfirmation] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<Partial<Record<keyof BookingInput, string[]>>>({});
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -76,11 +73,6 @@ export function BookingWidget({
     { number: 3, label: t("steps.confirmation"), icon: Check },
   ];
 
-  // startTransition (React 19 async actions) rather than a plain async
-  // useCallback + manual loading state: state updates inside a transition
-  // are handled by React's own scheduling instead of being a synchronous
-  // setState reachable from the effect body, which is what
-  // react-hooks/set-state-in-effect is guarding against.
   const refreshSlots = useCallback(() => {
     startSlotsTransition(async () => {
       if (!clinicId || !appointmentTypeId || !date) {
@@ -103,7 +95,7 @@ export function BookingWidget({
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
-    if (!selectedSlotStart || !selectedClinic) {
+    if (!selectedSlotStart || !selectedClinic || !privacyConsent || !adultConfirmation) {
       return;
     }
 
@@ -119,6 +111,8 @@ export function BookingWidget({
       patientName: fullName,
       patientPhone: phone,
       patientEmail: email,
+      privacyConsent,
+      adultConfirmation,
     });
 
     setSubmitting(false);
@@ -198,11 +192,7 @@ export function BookingWidget({
                       : "border-border bg-muted text-muted-foreground",
                   )}
                 >
-                  {isComplete ? (
-                    <Check className="size-4" aria-hidden />
-                  ) : (
-                    <Icon className="size-4" aria-hidden />
-                  )}
+                  {isComplete ? <Check className="size-4" aria-hidden /> : <Icon className="size-4" aria-hidden />}
                 </div>
                 <p
                   className={cn(
@@ -229,9 +219,7 @@ export function BookingWidget({
               className="border-input focus-visible:border-ring focus-visible:ring-ring/50 mt-1.5 h-9 w-full rounded-lg border bg-transparent px-2.5 text-sm shadow-xs transition-all outline-none focus-visible:ring-3"
             >
               {clinics.map((clinic) => (
-                <option key={clinic.id} value={clinic.id}>
-                  {clinic.name}
-                </option>
+                <option key={clinic.id} value={clinic.id}>{clinic.name}</option>
               ))}
             </select>
           </div>
@@ -247,9 +235,7 @@ export function BookingWidget({
               className="border-input focus-visible:border-ring focus-visible:ring-ring/50 mt-1.5 h-9 w-full rounded-lg border bg-transparent px-2.5 text-sm shadow-xs transition-all outline-none focus-visible:ring-3"
             >
               {appointmentTypes.map((type) => (
-                <option key={type.id} value={type.id}>
-                  {type.name}
-                </option>
+                <option key={type.id} value={type.id}>{type.name}</option>
               ))}
             </select>
           </div>
@@ -272,60 +258,72 @@ export function BookingWidget({
           />
         ) : null}
 
-        {/* Rendered outside the slot-dependent form on purpose: a conflict
-            error (slot taken / schedule changed) clears the selection as
-            part of showing it, so nesting this inside the
-            `selectedSlotStart` block would hide the message at the exact
-            moment the user needs to read it. */}
         {submitError ? <p className="text-destructive text-sm">{submitError}</p> : null}
 
         {selectedSlotStart ? (
           <form onSubmit={handleSubmit} className="space-y-4 border-t pt-5">
             <div>
               <Label htmlFor="patient-name">{t("fullNameLabel")}</Label>
-              <Input
-                id="patient-name"
-                value={fullName}
-                onChange={(event) => setFullName(event.target.value)}
-                className="mt-1.5"
-                required
-              />
-              {fieldErrors.patientName ? (
-                <p className="text-destructive mt-1 text-xs">{fieldErrors.patientName[0]}</p>
-              ) : null}
+              <Input id="patient-name" value={fullName} onChange={(event) => setFullName(event.target.value)} className="mt-1.5" required />
+              {fieldErrors.patientName ? <p className="text-destructive mt-1 text-xs">{fieldErrors.patientName[0]}</p> : null}
             </div>
 
             <div>
               <Label htmlFor="patient-phone">{t("phoneLabel")}</Label>
-              <Input
-                id="patient-phone"
-                type="tel"
-                value={phone}
-                onChange={(event) => setPhone(event.target.value)}
-                className="mt-1.5"
-                required
-              />
-              {fieldErrors.patientPhone ? (
-                <p className="text-destructive mt-1 text-xs">{fieldErrors.patientPhone[0]}</p>
-              ) : null}
+              <Input id="patient-phone" type="tel" value={phone} onChange={(event) => setPhone(event.target.value)} className="mt-1.5" required />
+              {fieldErrors.patientPhone ? <p className="text-destructive mt-1 text-xs">{fieldErrors.patientPhone[0]}</p> : null}
             </div>
 
             <div>
               <Label htmlFor="patient-email">{t("emailLabel")}</Label>
-              <Input
-                id="patient-email"
-                type="email"
-                value={email}
-                onChange={(event) => setEmail(event.target.value)}
-                className="mt-1.5"
-                required
-              />
-              {fieldErrors.patientEmail ? (
-                <p className="text-destructive mt-1 text-xs">{fieldErrors.patientEmail[0]}</p>
-              ) : null}
+              <Input id="patient-email" type="email" value={email} onChange={(event) => setEmail(event.target.value)} className="mt-1.5" required />
+              {fieldErrors.patientEmail ? <p className="text-destructive mt-1 text-xs">{fieldErrors.patientEmail[0]}</p> : null}
             </div>
 
-            <Button type="submit" size="lg" disabled={submitting} className="h-11 w-full">
+            <label className="flex items-start gap-3 text-sm leading-relaxed">
+              <input
+                type="checkbox"
+                checked={adultConfirmation}
+                onChange={(event) => setAdultConfirmation(event.target.checked)}
+                required
+                className="mt-1 size-4 shrink-0"
+              />
+              <span className="text-muted-foreground">
+                {locale === "ar"
+                  ? "أصرّح بأن عمري 18 سنة أو أكثر. الحجز للقاصرين غير متاح عبر دويني في النسخة الحالية."
+                  : "Je confirme avoir 18 ans ou plus. La réservation pour un mineur n’est pas disponible sur Dewini dans la version actuelle."}
+              </span>
+            </label>
+
+            <label className="flex items-start gap-3 text-sm leading-relaxed">
+              <input
+                type="checkbox"
+                checked={privacyConsent}
+                onChange={(event) => setPrivacyConsent(event.target.checked)}
+                required
+                className="mt-1 size-4 shrink-0"
+              />
+              <span className="text-muted-foreground">
+                {locale === "ar"
+                  ? "أوافق على معالجة بياناتي اللازمة لحجز وإدارة هذا الموعد وفق سياسة الخصوصية."
+                  : "J’accepte le traitement des données nécessaires à la réservation et à la gestion de ce rendez-vous conformément à la politique de confidentialité."}{" "}
+                <a
+                  href={`/${locale}/privacy`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-foreground underline underline-offset-4"
+                >
+                  {locale === "ar" ? "قراءة سياسة الخصوصية" : "Lire la politique de confidentialité"}
+                </a>
+              </span>
+            </label>
+
+            <Button
+              type="submit"
+              size="lg"
+              disabled={submitting || !privacyConsent || !adultConfirmation}
+              className="h-11 w-full"
+            >
               {submitting ? t("submitting") : t("submitAction")}
             </Button>
           </form>
