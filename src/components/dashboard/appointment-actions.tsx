@@ -27,6 +27,52 @@ type Mode =
   | "delaying"
   | "delayApplied";
 
+const DELAY_COPY = {
+  fr: {
+    action: "Décaler la suite",
+    title: "Décaler la suite",
+    description:
+      "Prolongez ce rendez-vous et laissez Dewini déplacer uniquement les rendez-vous réellement affectés. Les créneaux libres absorbent automatiquement le retard.",
+    custom: "Personnalisé",
+    previewing: "Calcul…",
+    previewAction: "Prévisualiser",
+    previewTitle: "Aperçu des changements",
+    anchorEnd: (oldTime: string, newTime: string) =>
+      `Fin de ce rendez-vous : ${oldTime} → ${newTime}`,
+    contactRequired: "Patient à prévenir",
+    noOtherAppointments:
+      "Aucun autre rendez-vous ne doit être déplacé : le retard est absorbé par un créneau libre.",
+    applying: "Décalage…",
+    confirmAction: "Confirmer le décalage",
+    successTitle: "Planning mis à jour",
+    successMessage: (minutes: number, count: number) =>
+      `Retard de ${minutes} min appliqué. ${count} rendez-vous déplacé${count > 1 ? "s" : ""}.`,
+    patientsToContact: "Patients à prévenir",
+    emailNotice: "Les patients concernés avec une adresse e-mail seront prévenus automatiquement.",
+  },
+  ar: {
+    action: "تأخير المواعيد التالية",
+    title: "تأخير المواعيد التالية",
+    description:
+      "مدّد هذا الموعد وسيقوم دويني بتحريك المواعيد المتأثرة فقط. أي فراغ متاح في الجدول يمتص التأخير تلقائيًا.",
+    custom: "مخصص",
+    previewing: "جارٍ الحساب…",
+    previewAction: "معاينة",
+    previewTitle: "معاينة التغييرات",
+    anchorEnd: (oldTime: string, newTime: string) =>
+      `نهاية هذا الموعد: ${oldTime} ← ${newTime}`,
+    contactRequired: "يجب إبلاغ المريض",
+    noOtherAppointments: "لا حاجة لتحريك مواعيد أخرى لأن وقت الفراغ امتص التأخير.",
+    applying: "جارٍ التأخير…",
+    confirmAction: "تأكيد التأخير",
+    successTitle: "تم تحديث الجدول",
+    successMessage: (minutes: number, count: number) =>
+      `تم تطبيق تأخير قدره ${minutes} دقيقة وتحريك ${count} موعد.` ,
+    patientsToContact: "مرضى يجب إبلاغهم",
+    emailNotice: "سيتم إبلاغ المرضى المعنيين الذين لديهم بريد إلكتروني تلقائيًا.",
+  },
+} as const;
+
 function todayIsoDate(): string {
   return new Date().toISOString().slice(0, 10);
 }
@@ -71,6 +117,7 @@ export function AppointmentActions({
   allowDelay?: boolean;
 }) {
   const t = useTranslations("dashboard.appointmentActions");
+  const delayCopy = locale === "ar" ? DELAY_COPY.ar : DELAY_COPY.fr;
   const router = useRouter();
 
   const [mode, setMode] = useState<Mode>("view");
@@ -234,16 +281,16 @@ export function AppointmentActions({
     const needsContact = appliedDelayPlan.affected.filter((item) => item.needs_contact);
     return (
       <div className="border-primary/20 bg-primary/5 mt-3 space-y-3 rounded-lg border p-3 text-sm">
-        <p className="font-medium">{t("delaySuccessTitle")}</p>
+        <p className="font-medium">{delayCopy.successTitle}</p>
         <p className="text-muted-foreground">
-          {t("delaySuccessMessage", {
-            minutes: appliedDelayPlan.delay_minutes,
-            count: appliedDelayPlan.affected_count,
-          })}
+          {delayCopy.successMessage(
+            appliedDelayPlan.delay_minutes,
+            appliedDelayPlan.affected_count,
+          )}
         </p>
         {needsContact.length > 0 ? (
           <div className="border-border rounded-md border bg-background/70 p-2.5">
-            <p className="font-medium">{t("delayPatientsToContact")}</p>
+            <p className="font-medium">{delayCopy.patientsToContact}</p>
             <ul className="mt-1 space-y-1">
               {needsContact.map((item) => (
                 <li key={item.appointment_id} className="text-muted-foreground">
@@ -253,7 +300,7 @@ export function AppointmentActions({
             </ul>
           </div>
         ) : appliedDelayPlan.affected_count > 0 ? (
-          <p className="text-muted-foreground">{t("delayEmailNotice")}</p>
+          <p className="text-muted-foreground">{delayCopy.emailNotice}</p>
         ) : null}
         <Button
           type="button"
@@ -274,8 +321,8 @@ export function AppointmentActions({
     return (
       <div className="border-border mt-3 space-y-4 rounded-lg border p-3">
         <div>
-          <p className="font-medium">{t("delayTitle")}</p>
-          <p className="text-muted-foreground mt-1 text-sm">{t("delayDescription")}</p>
+          <p className="font-medium">{delayCopy.title}</p>
+          <p className="text-muted-foreground mt-1 text-sm">{delayCopy.description}</p>
         </div>
 
         <div className="flex flex-wrap gap-2">
@@ -292,7 +339,7 @@ export function AppointmentActions({
             </Button>
           ))}
           <label className="flex items-center gap-2 text-sm">
-            <span className="text-muted-foreground">{t("delayCustom")}</span>
+            <span className="text-muted-foreground">{delayCopy.custom}</span>
             <input
               type="number"
               min={1}
@@ -312,7 +359,7 @@ export function AppointmentActions({
             disabled={actionPending || delayMinutes < 1 || delayMinutes > 240}
             onClick={() => previewDelay(delayMinutes)}
           >
-            {actionPending ? t("delayPreviewing") : t("delayPreviewAction")}
+            {actionPending ? delayCopy.previewing : delayCopy.previewAction}
           </Button>
         </div>
 
@@ -321,12 +368,12 @@ export function AppointmentActions({
         {delayPlan ? (
           <div className="bg-muted/40 space-y-3 rounded-lg p-3">
             <div>
-              <p className="font-medium">{t("delayPreviewTitle")}</p>
+              <p className="font-medium">{delayCopy.previewTitle}</p>
               <p className="text-muted-foreground text-sm">
-                {t("delayAnchorEnd", {
-                  oldTime: formatTime(delayPlan.old_ends_at, appointment.clinicTimezone, locale),
-                  newTime: formatTime(delayPlan.new_ends_at, appointment.clinicTimezone, locale),
-                })}
+                {delayCopy.anchorEnd(
+                  formatTime(delayPlan.old_ends_at, appointment.clinicTimezone, locale),
+                  formatTime(delayPlan.new_ends_at, appointment.clinicTimezone, locale),
+                )}
               </p>
             </div>
 
@@ -338,18 +385,18 @@ export function AppointmentActions({
                     <p className="text-muted-foreground text-sm tabular-nums">
                       {formatTime(item.old_starts_at, appointment.clinicTimezone, locale)} →{" "}
                       {formatTime(item.new_starts_at, appointment.clinicTimezone, locale)}
-                      {item.needs_contact ? ` · ${t("delayContactRequired")}` : ""}
+                      {item.needs_contact ? ` · ${delayCopy.contactRequired}` : ""}
                     </p>
                   </li>
                 ))}
               </ul>
             ) : (
-              <p className="text-muted-foreground text-sm">{t("delayNoOtherAppointments")}</p>
+              <p className="text-muted-foreground text-sm">{delayCopy.noOtherAppointments}</p>
             )}
 
             <div className="flex flex-wrap gap-2">
               <Button type="button" size="sm" onClick={applyDelay} disabled={actionPending}>
-                {actionPending ? t("delayApplying") : t("delayConfirmAction")}
+                {actionPending ? delayCopy.applying : delayCopy.confirmAction}
               </Button>
               <Button
                 type="button"
@@ -535,7 +582,7 @@ export function AppointmentActions({
               setMode("delaying");
             }}
           >
-            {t("delayAction")}
+            {delayCopy.action}
           </Button>
         ) : null}
         <Button
