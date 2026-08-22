@@ -4,6 +4,7 @@ import { useState, useTransition, type FormEvent } from "react";
 import { DateTime } from "luxon";
 import { Plus, X } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { useLocale } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { createStaffAppointmentAction } from "@/app/[locale]/(dashboard)/dashboard/actions";
 
@@ -72,7 +73,8 @@ const COPY = {
   },
 } as const;
 
-type Copy = (typeof COPY)["fr"];
+type CopyKey = keyof (typeof COPY)["fr"];
+type Copy = Record<CopyKey, string>;
 
 function actionErrorMessage(copy: Copy, code: string): string {
   switch (code) {
@@ -95,14 +97,13 @@ export function ManualAppointmentForm({
   clinics,
   appointmentTypes,
   defaultDate,
-  locale,
 }: {
   doctorId: string;
   clinics: ManualAppointmentClinicOption[];
   appointmentTypes: ManualAppointmentTypeOption[];
   defaultDate: string;
-  locale: string;
 }) {
+  const locale = useLocale();
   const copy: Copy = locale === "ar" ? COPY.ar : COPY.fr;
   const router = useRouter();
   const [open, setOpen] = useState(false);
