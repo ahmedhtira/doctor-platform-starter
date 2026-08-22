@@ -6,16 +6,26 @@ import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { SlotPicker } from "@/components/booking/slot-picker";
 import {
+  applyStaffAppointmentDelayAction,
   cancelAppointmentAction,
   getStaffRescheduleSlotsAction,
+  previewStaffAppointmentDelayAction,
   recordAppointmentOutcomeAction,
   rescheduleAppointmentAction,
 } from "@/app/[locale]/(dashboard)/dashboard/actions";
 import type { AvailableSlot } from "@/lib/availability/compute-available-slots";
 import type { DashboardAppointment } from "@/lib/dashboard/fetch-dashboard-appointments";
 import type { AppointmentOutcome } from "@/lib/dashboard/record-staff-appointment-outcome";
+import type { StaffDelayPlan } from "@/lib/dashboard/staff-schedule-actions";
 
-type Mode = "view" | "confirmingCancel" | "confirmingOutcome" | "rescheduling" | "rescheduled";
+type Mode =
+  | "view"
+  | "confirmingCancel"
+  | "confirmingOutcome"
+  | "rescheduling"
+  | "rescheduled"
+  | "delaying"
+  | "delayApplied";
 
 function todayIsoDate(): string {
   return new Date().toISOString().slice(0, 10);
@@ -34,28 +44,31 @@ function errorMessageFor(t: ReturnType<typeof useTranslations>, code: string): s
     case "NOT_YET_ENDED":
       return t("errorNotYetEnded");
     case "UNAUTHENTICATED":
+    case "SESSION_INVALID":
       return t("errorUnauthenticated");
     default:
       return t("errorUnknown");
   }
 }
 
-/**
- * Per-row cancel/reschedule controls, mirroring
- * managed-appointment-view.tsx's mode state machine
- * (view/confirmingCancel/rescheduling/rescheduled) — that UX language is
- * already validated in this codebase, just staff-phrased here. One
- * addition over the patient-facing version: a Copy button on the
- * post-reschedule management-link notice, since a doctor/secretary needs
- * to hand that link to the patient directly (by phone/SMS/etc.) until
- * automated email delivery exists — M6 doesn't send email.
- */
+function formatTime(iso: string, timezone: string, locale: string): string {
+  const intlLocale = locale === "ar" ? "ar-TN-u-nu-latn" : "fr-TN";
+  return new Intl.DateTimeFormat(intlLocale, {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+    timeZone: timezone,
+  }).format(new Date(iso));
+}
+
 export function AppointmentActions({
   appointment,
   locale,
+  allowDelay = false,
 }: {
   appointment: DashboardAppointment;
   locale: string;
+  allowDelay?: boolean;
 }) {
   const t = useTranslations("dashboard.appointmentActions");
   const router = useRouter();
@@ -64,13 +77,8 @@ export function AppointmentActions({
   const [actionPending, startActionTransition] = useTransition();
   const [actionError, setActionError] = useState<string | null>(null);
   const [pendingOutcome, setPendingOutcome] = useState<AppointmentOutcome | null>(null);
-  // Lazy initializer (same idiom as `date`/todayIsoDate() below) — read
-  // once at mount, not on every render, so this doesn't call the impure
-  // Date.now() directly in the render body. appointment.endsAt is stable
-  // for the lifetime of one mounted instance (appointment-list.tsx keys
-  // each row by appointment.id and the list itself is server-refreshed
-  // via router.refresh(), not mutated in place).
   const [hasEnded] = useState(() => new Date(appointment.endsAt).getTime() <= Date.now());
+  const [hasStarted] = useState(() => new Date(appointment.startsAt).getTime() <= Date.now());
 
   const [date, setDate] = useState(todayIsoDate());
   const [slots, setSlots] = useState<AvailableSlot[]>([]);
@@ -86,6 +94,10 @@ export function AppointmentActions({
     managementToken: string;
   } | null>(null);
   const [copied, setCopied] = useState(false);
+
+  const [delayMinutes, setDelayMinutes] = useState(30);
+  const [delayPlan, setDelayPlan] = useState<StaffDelayPlan | null>(null);
+  const [appliedDelayPlan, setAppliedDelayPlan] = useState<StaffDelayPlan | null>(null);
 
   const refreshSlots = useCallback(
     (forDate: string) => {
@@ -142,9 +154,7 @@ export function AppointmentActions({
   }
 
   function handleConfirmReschedule() {
-    if (!selectedSlotStart) {
-      return;
-    }
+    if (!selectedSlotStart) return;
     startActionTransition(async () => {
       const result = await rescheduleAppointmentAction({
         appointmentId: appointment.id,
@@ -170,13 +180,46 @@ export function AppointmentActions({
     });
   }
 
-  // window.location.origin is only available client-side — guarded for
-  // this client component's (brief) server-render pass, same pattern as
-  // booking-confirmation.tsx/managed-appointment-view.tsx.
+  function previewDelay(minutes: number) {
+    const safeMinutes = Math.max(1, Math.min(240, Math.round(minutes)));
+    setDelayMinutes(safeMinutes);
+    setActionError(null);
+    setDelayPlan(null);
+    startActionTransition(async () => {
+      const result = await previewStaffAppointmentDelayAction({
+        appointmentId: appointment.id,
+        delayMinutes: safeMinutes,
+      });
+      if (result.success) {
+        setDelayPlan(result.plan);
+        return;
+      }
+      setActionError(errorMessageFor(t, result.errorCode));
+    });
+  }
+
+  function applyDelay() {
+    if (!delayPlan) return;
+    setActionError(null);
+    startActionTransition(async () => {
+      const result = await applyStaffAppointmentDelayAction({
+        appointmentId: appointment.id,
+        delayMinutes: delayPlan.delay_minutes,
+      });
+      if (result.success) {
+        setAppliedDelayPlan(result.plan);
+        setDelayPlan(null);
+        setMode("delayApplied");
+        router.refresh();
+        return;
+      }
+      setActionError(errorMessageFor(t, result.errorCode));
+      setDelayPlan(null);
+    });
+  }
+
   const managementLink = useMemo(() => {
-    if (!rescheduled || typeof window === "undefined") {
-      return "";
-    }
+    if (!rescheduled || typeof window === "undefined") return "";
     return `${window.location.origin}/${locale}/manage#token=${rescheduled.managementToken}`;
   }, [rescheduled, locale]);
 
@@ -187,6 +230,160 @@ export function AppointmentActions({
     setTimeout(() => setCopied(false), 2000);
   }
 
+  if (mode === "delayApplied" && appliedDelayPlan) {
+    const needsContact = appliedDelayPlan.affected.filter((item) => item.needs_contact);
+    return (
+      <div className="border-primary/20 bg-primary/5 mt-3 space-y-3 rounded-lg border p-3 text-sm">
+        <p className="font-medium">{t("delaySuccessTitle")}</p>
+        <p className="text-muted-foreground">
+          {t("delaySuccessMessage", {
+            minutes: appliedDelayPlan.delay_minutes,
+            count: appliedDelayPlan.affected_count,
+          })}
+        </p>
+        {needsContact.length > 0 ? (
+          <div className="border-border rounded-md border bg-background/70 p-2.5">
+            <p className="font-medium">{t("delayPatientsToContact")}</p>
+            <ul className="mt-1 space-y-1">
+              {needsContact.map((item) => (
+                <li key={item.appointment_id} className="text-muted-foreground">
+                  {item.patient_name} · {item.patient_phone}
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : appliedDelayPlan.affected_count > 0 ? (
+          <p className="text-muted-foreground">{t("delayEmailNotice")}</p>
+        ) : null}
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          onClick={() => {
+            setAppliedDelayPlan(null);
+            setMode("view");
+          }}
+        >
+          {t("backToAppointment")}
+        </Button>
+      </div>
+    );
+  }
+
+  if (mode === "delaying") {
+    return (
+      <div className="border-border mt-3 space-y-4 rounded-lg border p-3">
+        <div>
+          <p className="font-medium">{t("delayTitle")}</p>
+          <p className="text-muted-foreground mt-1 text-sm">{t("delayDescription")}</p>
+        </div>
+
+        <div className="flex flex-wrap gap-2">
+          {[15, 30, 45].map((minutes) => (
+            <Button
+              key={minutes}
+              type="button"
+              size="sm"
+              variant={delayMinutes === minutes ? "default" : "outline"}
+              disabled={actionPending}
+              onClick={() => previewDelay(minutes)}
+            >
+              +{minutes} min
+            </Button>
+          ))}
+          <label className="flex items-center gap-2 text-sm">
+            <span className="text-muted-foreground">{t("delayCustom")}</span>
+            <input
+              type="number"
+              min={1}
+              max={240}
+              value={delayMinutes}
+              onChange={(event) => {
+                setDelayMinutes(Number(event.target.value));
+                setDelayPlan(null);
+              }}
+              className="border-input bg-background h-8 w-20 rounded-md border px-2"
+            />
+          </label>
+          <Button
+            type="button"
+            size="sm"
+            variant="secondary"
+            disabled={actionPending || delayMinutes < 1 || delayMinutes > 240}
+            onClick={() => previewDelay(delayMinutes)}
+          >
+            {actionPending ? t("delayPreviewing") : t("delayPreviewAction")}
+          </Button>
+        </div>
+
+        {actionError ? <p className="text-destructive text-sm">{actionError}</p> : null}
+
+        {delayPlan ? (
+          <div className="bg-muted/40 space-y-3 rounded-lg p-3">
+            <div>
+              <p className="font-medium">{t("delayPreviewTitle")}</p>
+              <p className="text-muted-foreground text-sm">
+                {t("delayAnchorEnd", {
+                  oldTime: formatTime(delayPlan.old_ends_at, appointment.clinicTimezone, locale),
+                  newTime: formatTime(delayPlan.new_ends_at, appointment.clinicTimezone, locale),
+                })}
+              </p>
+            </div>
+
+            {delayPlan.affected.length > 0 ? (
+              <ul className="space-y-2">
+                {delayPlan.affected.map((item) => (
+                  <li key={item.appointment_id} className="rounded-md border bg-background p-2">
+                    <p className="font-medium">{item.patient_name}</p>
+                    <p className="text-muted-foreground text-sm tabular-nums">
+                      {formatTime(item.old_starts_at, appointment.clinicTimezone, locale)} →{" "}
+                      {formatTime(item.new_starts_at, appointment.clinicTimezone, locale)}
+                      {item.needs_contact ? ` · ${t("delayContactRequired")}` : ""}
+                    </p>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="text-muted-foreground text-sm">{t("delayNoOtherAppointments")}</p>
+            )}
+
+            <div className="flex flex-wrap gap-2">
+              <Button type="button" size="sm" onClick={applyDelay} disabled={actionPending}>
+                {actionPending ? t("delayApplying") : t("delayConfirmAction")}
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                disabled={actionPending}
+                onClick={() => {
+                  setDelayPlan(null);
+                  setActionError(null);
+                  setMode("view");
+                }}
+              >
+                {t("rescheduleBackAction")}
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            disabled={actionPending}
+            onClick={() => {
+              setActionError(null);
+              setMode("view");
+            }}
+          >
+            {t("rescheduleBackAction")}
+          </Button>
+        )}
+      </div>
+    );
+  }
+
   if (mode === "rescheduled" && rescheduled) {
     return (
       <div className="border-border bg-muted/40 mt-3 space-y-3 rounded-lg border p-3 text-sm">
@@ -195,9 +392,7 @@ export function AppointmentActions({
         <div>
           <p className="font-medium">{t("managementLinkTitle")}</p>
           <p className="text-muted-foreground mt-1">{t("managementLinkDescription")}</p>
-          {managementLink ? (
-            <p className="mt-2 font-mono text-xs break-all">{managementLink}</p>
-          ) : null}
+          {managementLink ? <p className="mt-2 font-mono text-xs break-all">{managementLink}</p> : null}
           <div className="mt-2 flex gap-2">
             <Button type="button" size="sm" variant="outline" onClick={handleCopyLink}>
               {copied ? t("copyLinkCopied") : t("copyLinkAction")}
@@ -302,12 +497,7 @@ export function AppointmentActions({
         </p>
         {actionError ? <p className="text-destructive text-sm">{actionError}</p> : null}
         <div className="flex gap-2">
-          <Button
-            type="button"
-            size="sm"
-            onClick={handleRecordOutcome}
-            disabled={actionPending}
-          >
+          <Button type="button" size="sm" onClick={handleRecordOutcome} disabled={actionPending}>
             {actionPending ? t("recordingOutcome") : t("outcomeConfirmYes")}
           </Button>
           <Button
@@ -334,6 +524,20 @@ export function AppointmentActions({
         <Button type="button" size="sm" variant="outline" onClick={beginReschedule}>
           {t("rescheduleAction")}
         </Button>
+        {allowDelay && hasStarted ? (
+          <Button
+            type="button"
+            size="sm"
+            variant="secondary"
+            onClick={() => {
+              setActionError(null);
+              setDelayPlan(null);
+              setMode("delaying");
+            }}
+          >
+            {t("delayAction")}
+          </Button>
+        ) : null}
         <Button
           type="button"
           size="sm"
