@@ -73,9 +73,9 @@ export function ManagedAppointmentView({
   const hasStarted = appointmentStartMs <= nowMs;
   const canModify = currentAppointment.status === "confirmed" && !hasStarted;
 
-  // A management page can stay open across the appointment start time. Flip
-  // it to view-only exactly at that boundary instead of leaving stale
-  // cancellation/reschedule controls visible until refresh.
+  // A management page can stay open across the appointment start time.
+  // Re-evaluate exactly at that boundary so mutation controls disappear
+  // without polling or requiring a manual refresh.
   useEffect(() => {
     if (!Number.isFinite(appointmentStartMs) || appointmentStartMs <= nowMs) return;
     const timer = window.setTimeout(
@@ -84,13 +84,6 @@ export function ManagedAppointmentView({
     );
     return () => window.clearTimeout(timer);
   }, [appointmentStartMs, nowMs]);
-
-  useEffect(() => {
-    if (!hasStarted || mode === "view" || mode === "rescheduled") return;
-    setActionError(null);
-    setRawSelectedSlotStart(null);
-    setMode("view");
-  }, [hasStarted, mode]);
 
   const refreshSlots = useCallback((forDate: string) => {
     startSlotsTransition(async () => {
