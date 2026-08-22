@@ -1,12 +1,13 @@
 "use client";
 
-import { useState, useTransition, type FormEvent } from "react";
-import { DateTime } from "luxon";
+import { useEffect, useState, useTransition, type FormEvent } from "react";
 import { Plus, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useLocale } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { createStaffAppointmentAction } from "@/app/[locale]/(dashboard)/dashboard/actions";
+import { getStaffManualAppointmentSlotsAction } from "@/app/[locale]/(dashboard)/dashboard/manual-appointment-actions";
+import type { AvailableSlot } from "@/lib/availability/compute-available-slots";
 
 export type ManualAppointmentClinicOption = {
   id: string;
@@ -34,14 +35,17 @@ const COPY = {
     clinicLabel: "Cabinet",
     appointmentTypeLabel: "Type de consultation",
     dateLabel: "Date",
-    timeLabel: "Heure",
+    timeLabel: "Heure disponible",
+    timePlaceholder: "Choisir une heure",
+    slotsLoading: "Chargement des heures disponibles…",
+    slotsEmpty: "Aucun créneau disponible à cette date.",
     notesLabel: "Note interne",
     optionalPlaceholder: "Optionnel",
     creating: "Ajout en cours…",
     confirmAction: "Ajouter le rendez-vous",
     cancelAction: "Annuler",
-    errorSlotUnavailable: "Ce créneau est déjà occupé. Choisissez une autre heure.",
-    errorSchedule: "Ce créneau est hors horaires, en pause ou bloqué.",
+    errorSlotUnavailable: "Ce créneau vient d'être pris. Choisissez une autre heure.",
+    errorSchedule: "Ce créneau n'est plus disponible. Les heures ont été actualisées.",
     errorSession: "Votre session a expiré. Reconnectez-vous.",
     errorValidation: "Vérifiez les informations saisies.",
     errorUnknown: "Impossible d'ajouter le rendez-vous. Réessayez.",
@@ -59,14 +63,17 @@ const COPY = {
     clinicLabel: "العيادة",
     appointmentTypeLabel: "نوع الاستشارة",
     dateLabel: "التاريخ",
-    timeLabel: "الوقت",
+    timeLabel: "الوقت المتاح",
+    timePlaceholder: "اختر وقتًا",
+    slotsLoading: "جارٍ تحميل الأوقات المتاحة…",
+    slotsEmpty: "لا توجد أوقات متاحة في هذا التاريخ.",
     notesLabel: "ملاحظة داخلية",
     optionalPlaceholder: "اختياري",
     creating: "جارٍ الإضافة…",
     confirmAction: "إضافة الموعد",
     cancelAction: "إلغاء",
-    errorSlotUnavailable: "هذا الوقت محجوز بالفعل. اختر وقتًا آخر.",
-    errorSchedule: "هذا الوقت خارج ساعات العمل أو خلال استراحة أو فترة محجوبة.",
+    errorSlotUnavailable: "تم حجز هذا الوقت للتو. اختر وقتًا آخر.",
+    errorSchedule: "هذا الوقت لم يعد متاحًا. تم تحديث الأوقات المتاحة.",
     errorSession: "انتهت جلستك. يرجى تسجيل الدخول من جديد.",
     errorValidation: "تحقق من المعلومات المدخلة.",
     errorUnknown: "تعذر إضافة الموعد. حاول مرة أخرى.",
@@ -92,6 +99,16 @@ function actionErrorMessage(copy: Copy, code: string): string {
   }
 }
 
+function formatSlotTime(iso: string, timezone: string, locale: string): string {
+  const intlLocale = locale === "ar" ? "ar-TN-u-nu-latn" : "fr-TN";
+  return new Intl.DateTimeFormat(intlLocale, {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+    timeZone: timezone,
+  }).format(new Date(iso));
+}
+
 export function ManualAppointmentForm({
   doctorId,
   clinics,
@@ -108,19 +125,58 @@ export function ManualAppointmentForm({
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [pending, startTransition] = useTransition();
+  const [slotsPending, startSlotsTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
 
   const [clinicId, setClinicId] = useState(clinics[0]?.id ?? "");
   const [appointmentTypeId, setAppointmentTypeId] = useState(appointmentTypes[0]?.id ?? "");
   const [date, setDate] = useState(defaultDate);
-  const [time, setTime] = useState("09:00");
+  const [slots, setSlots] = useState<AvailableSlot[]>([]);
+  const [selectedSlotStart, setSelectedSlotStart] = useState("");
+  const [slotRefreshKey, setSlotRefreshKey] = useState(0);
   const [patientName, setPatientName] = useState("");
   const [patientPhone, setPatientPhone] = useState("");
   const [patientEmail, setPatientEmail] = useState("");
   const [notes, setNotes] = useState("");
 
   const canCreate = clinics.length > 0 && appointmentTypes.length > 0;
+  const selectedClinic = clinics.find((clinic) => clinic.id === clinicId) ?? null;
+
+  useEffect(() => {
+    if (!open || !clinicId || !appointmentTypeId || !date) {
+      return;
+    }
+
+    let cancelled = false;
+    setSelectedSlotStart("");
+    setError(null);
+
+    startSlotsTransition(async () => {
+      const result = await getStaffManualAppointmentSlotsAction({
+        doctorId,
+        clinicId,
+        appointmentTypeId,
+        localDate: date,
+      });
+
+      if (cancelled) {
+        return;
+      }
+
+      if (result.success) {
+        setSlots(result.slots);
+        return;
+      }
+
+      setSlots([]);
+      setError(actionErrorMessage(copy, result.errorCode));
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [open, doctorId, clinicId, appointmentTypeId, date, slotRefreshKey, copy]);
 
   function resetPatientFields() {
     setPatientName("");
@@ -134,14 +190,7 @@ export function ManualAppointmentForm({
     setError(null);
     setSuccess(false);
 
-    const clinic = clinics.find((item) => item.id === clinicId);
-    if (!clinic || !appointmentTypeId || !date || !time) {
-      setError(copy.errorValidation);
-      return;
-    }
-
-    const startsAt = DateTime.fromISO(`${date}T${time}`, { zone: clinic.timezone });
-    if (!startsAt.isValid) {
+    if (!clinicId || !appointmentTypeId || !date || !selectedSlotStart) {
       setError(copy.errorValidation);
       return;
     }
@@ -151,7 +200,7 @@ export function ManualAppointmentForm({
         doctorId,
         clinicId,
         appointmentTypeId,
-        startsAt: startsAt.toISO(),
+        startsAt: selectedSlotStart,
         patientName,
         patientPhone,
         patientEmail: patientEmail.trim() || null,
@@ -160,10 +209,15 @@ export function ManualAppointmentForm({
 
       if (!result.success) {
         setError(actionErrorMessage(copy, result.errorCode));
+        if (result.errorCode === "SLOT_UNAVAILABLE" || result.errorCode === "SCHEDULE_CHANGED") {
+          setSelectedSlotStart("");
+          setSlotRefreshKey((value) => value + 1);
+        }
         return;
       }
 
       resetPatientFields();
+      setSelectedSlotStart("");
       setOpen(false);
       setSuccess(true);
       router.refresh();
@@ -281,29 +335,43 @@ export function ManualAppointmentForm({
           </select>
         </label>
 
-        <div className="grid grid-cols-2 gap-3">
-          <label className="grid gap-1.5 text-sm font-medium">
-            {copy.dateLabel}
-            <input
-              required
-              type="date"
-              value={date}
-              onChange={(event) => setDate(event.target.value)}
-              className="border-input bg-background h-10 min-w-0 rounded-lg border px-2 font-normal outline-none focus-visible:ring-2"
-            />
-          </label>
-          <label className="grid gap-1.5 text-sm font-medium">
-            {copy.timeLabel}
-            <input
-              required
-              type="time"
-              step={900}
-              value={time}
-              onChange={(event) => setTime(event.target.value)}
-              className="border-input bg-background h-10 min-w-0 rounded-lg border px-2 font-normal outline-none focus-visible:ring-2"
-            />
-          </label>
-        </div>
+        <label className="grid gap-1.5 text-sm font-medium">
+          {copy.dateLabel}
+          <input
+            required
+            type="date"
+            min={defaultDate}
+            value={date}
+            onChange={(event) => setDate(event.target.value)}
+            className="border-input bg-background h-10 min-w-0 rounded-lg border px-2 font-normal outline-none focus-visible:ring-2"
+          />
+        </label>
+
+        <label className="grid gap-1.5 text-sm font-medium sm:col-span-2 lg:col-span-1">
+          {copy.timeLabel}
+          <select
+            required
+            value={selectedSlotStart}
+            onChange={(event) => setSelectedSlotStart(event.target.value)}
+            disabled={slotsPending || slots.length === 0 || !selectedClinic}
+            className="border-input bg-background h-10 rounded-lg border px-3 font-normal outline-none focus-visible:ring-2 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            <option value="">
+              {slotsPending
+                ? copy.slotsLoading
+                : slots.length === 0
+                  ? copy.slotsEmpty
+                  : copy.timePlaceholder}
+            </option>
+            {selectedClinic
+              ? slots.map((slot) => (
+                  <option key={slot.slotStart} value={slot.slotStart}>
+                    {formatSlotTime(slot.slotStart, selectedClinic.timezone, locale)}
+                  </option>
+                ))
+              : null}
+          </select>
+        </label>
 
         <label className="grid gap-1.5 text-sm font-medium sm:col-span-2 lg:col-span-3">
           {copy.notesLabel}
@@ -321,7 +389,10 @@ export function ManualAppointmentForm({
       {error ? <p className="text-destructive mt-4 text-sm">{error}</p> : null}
 
       <div className="mt-5 flex flex-wrap gap-2">
-        <Button type="submit" disabled={pending || !canCreate}>
+        <Button
+          type="submit"
+          disabled={pending || slotsPending || !canCreate || !selectedSlotStart}
+        >
           {pending ? copy.creating : copy.confirmAction}
         </Button>
         <Button type="button" variant="outline" onClick={() => setOpen(false)} disabled={pending}>
