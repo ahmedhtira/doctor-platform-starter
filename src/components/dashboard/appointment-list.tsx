@@ -4,6 +4,12 @@ import { AppointmentActions } from "./appointment-actions";
 import type { DashboardAppointment } from "@/lib/dashboard/fetch-dashboard-appointments";
 import { cn } from "@/lib/utils";
 
+export type DashboardAppointmentTypeOption = {
+  id: string;
+  name: string;
+  durationMinutes: number;
+};
+
 function formatTime(iso: string, timezone: string, locale: string): string {
   const intlLocale = locale === "ar" ? "ar-TN-u-nu-latn" : "fr-TN";
   return new Intl.DateTimeFormat(intlLocale, {
@@ -25,12 +31,14 @@ function formatDate(iso: string, timezone: string, locale: string): string {
 export async function AppointmentList({
   appointments,
   locale,
+  appointmentTypes = [],
   showDate = false,
   variant = "list",
   allowDelay = false,
 }: {
   appointments: DashboardAppointment[];
   locale: string;
+  appointmentTypes?: DashboardAppointmentTypeOption[];
   showDate?: boolean;
   variant?: "list" | "cards";
   allowDelay?: boolean;
@@ -64,6 +72,9 @@ export async function AppointmentList({
     no_show: "border-s-accent",
   };
 
+  const manualLabel = locale === "ar" ? "موعد يدوي" : "Ajout manuel";
+  const notesLabel = locale === "ar" ? "ملاحظة" : "Note";
+
   return (
     <ul className={cn(variant === "list" ? "divide-border divide-y" : "space-y-2")}>
       {appointments.map((appointment) => (
@@ -87,14 +98,30 @@ export async function AppointmentList({
                 {appointment.clinicName} · {appointment.appointmentTypeName}
               </p>
               <p className="text-muted-foreground text-sm">{appointment.patientPhone}</p>
+              {appointment.notes ? (
+                <p className="text-muted-foreground mt-1 text-sm">
+                  <span className="font-medium text-foreground/80">{notesLabel}:</span>{" "}
+                  {appointment.notes}
+                </p>
+              ) : null}
             </div>
-            <Badge variant={statusVariant[appointment.status] ?? "secondary"}>
-              {t(`status.${appointment.status}`)}
-            </Badge>
+            <div className="flex flex-wrap justify-end gap-1.5">
+              {appointment.source === "manual" ? (
+                <Badge variant="secondary">{manualLabel}</Badge>
+              ) : null}
+              <Badge variant={statusVariant[appointment.status] ?? "secondary"}>
+                {t(`status.${appointment.status}`)}
+              </Badge>
+            </div>
           </div>
 
           {appointment.status === "confirmed" ? (
-            <AppointmentActions appointment={appointment} locale={locale} allowDelay={allowDelay} />
+            <AppointmentActions
+              appointment={appointment}
+              locale={locale}
+              appointmentTypes={appointmentTypes}
+              allowDelay={allowDelay}
+            />
           ) : null}
         </li>
       ))}
