@@ -149,8 +149,6 @@ export function ManualAppointmentForm({
     }
 
     let cancelled = false;
-    setSelectedSlotStart("");
-    setError(null);
 
     startSlotsTransition(async () => {
       const result = await getStaffManualAppointmentSlotsAction({
@@ -177,6 +175,12 @@ export function ManualAppointmentForm({
       cancelled = true;
     };
   }, [open, doctorId, clinicId, appointmentTypeId, date, slotRefreshKey, copy]);
+
+  function clearSlotSelection() {
+    setSelectedSlotStart("");
+    setSlots([]);
+    setError(null);
+  }
 
   function resetPatientFields() {
     setPatientName("");
@@ -232,6 +236,8 @@ export function ManualAppointmentForm({
           onClick={() => {
             setError(null);
             setSuccess(false);
+            setSelectedSlotStart("");
+            setSlots([]);
             setOpen(true);
           }}
           disabled={!canCreate}
@@ -308,7 +314,10 @@ export function ManualAppointmentForm({
           <select
             required
             value={clinicId}
-            onChange={(event) => setClinicId(event.target.value)}
+            onChange={(event) => {
+              setClinicId(event.target.value);
+              clearSlotSelection();
+            }}
             className="border-input bg-background h-10 rounded-lg border px-3 font-normal outline-none focus-visible:ring-2"
           >
             {clinics.map((clinic) => (
@@ -324,7 +333,10 @@ export function ManualAppointmentForm({
           <select
             required
             value={appointmentTypeId}
-            onChange={(event) => setAppointmentTypeId(event.target.value)}
+            onChange={(event) => {
+              setAppointmentTypeId(event.target.value);
+              clearSlotSelection();
+            }}
             className="border-input bg-background h-10 rounded-lg border px-3 font-normal outline-none focus-visible:ring-2"
           >
             {appointmentTypes.map((type) => (
@@ -342,7 +354,10 @@ export function ManualAppointmentForm({
             type="date"
             min={defaultDate}
             value={date}
-            onChange={(event) => setDate(event.target.value)}
+            onChange={(event) => {
+              setDate(event.target.value);
+              clearSlotSelection();
+            }}
             className="border-input bg-background h-10 min-w-0 rounded-lg border px-2 font-normal outline-none focus-visible:ring-2"
           />
         </label>
