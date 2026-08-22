@@ -5,6 +5,7 @@ import { requireDoctorContext } from "@/lib/dashboard/auth-context";
 import { fetchDashboardAppointments } from "@/lib/dashboard/fetch-dashboard-appointments";
 import { createClient } from "@/lib/supabase/server";
 import { AppointmentList } from "@/components/dashboard/appointment-list";
+import { ManualAppointmentForm } from "@/components/dashboard/manual-appointment-form";
 import { buildDashboardHref } from "@/lib/dashboard/dashboard-links";
 import { Link } from "@/i18n/navigation";
 import { buttonVariants } from "@/components/ui/button";
@@ -23,14 +24,6 @@ export default async function DashboardCalendarPage({
   const { doctorId: doctorIdParam, week: weekParam } = await searchParams;
   const { selectedDoctor } = await requireDoctorContext(doctorIdParam);
 
-  // The Monday that starts the displayed week, in the doctor's own display
-  // timezone (same reasoning as Today). An invalid/missing `week` param
-  // falls back to the current week rather than erroring. Computed via
-  // `.weekday` (Luxon: Monday=1...Sunday=7, same ISO convention already
-  // documented in compute-available-slots.ts) rather than
-  // `.startOf("week")`, which is locale-dependent and can resolve to a
-  // Sunday-start week under some Intl locale data — this app's week always
-  // starts Monday, matching the seed script's Postgres dow convention.
   const requestedWeekStart = weekParam
     ? DateTime.fromISO(weekParam, { zone: selectedDoctor.timezone })
     : null;
@@ -39,8 +32,6 @@ export default async function DashboardCalendarPage({
     : DateTime.now().setZone(selectedDoctor.timezone);
   const weekStart = referenceDay.minus({ days: referenceDay.weekday - 1 }).startOf("day");
 
-  // Non-null: weekStart is always a valid DateTime (guarded above), so
-  // .toISO()/.toISODate() can't return null here.
   const rangeStart = weekStart.toUTC().toISO()!;
   const rangeEnd = weekStart.plus({ weeks: 1 }).toUTC().toISO()!;
   const previousWeekStart = weekStart.minus({ weeks: 1 }).toISODate()!;
@@ -52,11 +43,43 @@ export default async function DashboardCalendarPage({
   const isCurrentWeek = weekStart.hasSame(currentWeekStart, "day");
 
   const supabase = await createClient();
-  const appointments = await fetchDashboardAppointments(supabase, {
-    doctorId: selectedDoctor.id,
-    rangeStart,
-    rangeEnd,
-  });
+  const [appointments, clinicsResult, appointmentTypesResult] = await Promise.all([
+    fetchDashboardAppointments(supabase, {
+      doctorId: selectedDoctor.id,
+      rangeStart,
+      rangeEnd,
+    }),
+    supabase
+      .from("clinics")
+      .select("id, name, timezone")
+      .eq("doctor_id", selectedDoctor.id)
+      .order("created_at", { ascending: true }),
+    supabase
+      .from("appointment_types")
+      .select("id, name, duration_minutes")
+      .eq("doctor_id", selectedDoctor.id)
+      .order("created_at", { ascending: true }),
+  ]);
+
+  if (clinicsResult.error) {
+    throw new Error(`Failed to load clinics for manual booking: ${clinicsResult.error.message}`);
+  }
+  if (appointmentTypesResult.error) {
+    throw new Error(
+      `Failed to load appointment types for manual booking: ${appointmentTypesResult.error.message}`,
+    );
+  }
+
+  const manualClinics = clinicsResult.data.map((clinic) => ({
+    id: clinic.id,
+    name: clinic.name,
+    timezone: clinic.timezone,
+  }));
+  const manualAppointmentTypes = appointmentTypesResult.data.map((type) => ({
+    id: type.id,
+    name: type.name,
+    durationMinutes: type.duration_minutes,
+  }));
 
   const days = Array.from({ length: 7 }, (_, index) => weekStart.plus({ days: index }));
   const intlLocale = locale === "ar" ? "ar-TN-u-nu-latn" : "fr-TN";
@@ -119,6 +142,15 @@ export default async function DashboardCalendarPage({
             <ChevronRight className="size-4 rtl:rotate-180" aria-hidden />
           </Link>
         </div>
+      </div>
+
+      <div className="mt-5">
+        <ManualAppointmentForm
+          doctorId={selectedDoctor.id}
+          clinics={manualClinics}
+          appointmentTypes={manualAppointmentTypes}
+          defaultDate={currentReference.toISODate()!}
+        />
       </div>
 
       <div className="mt-6 lg:overflow-x-auto lg:pb-3">

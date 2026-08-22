@@ -15,18 +15,21 @@ import {
   recordStaffAppointmentOutcome,
   type StaffRecordedOutcomeAppointment,
 } from "@/lib/dashboard/record-staff-appointment-outcome";
+import {
+  applyStaffAppointmentDelay,
+  createStaffAppointment,
+  previewStaffAppointmentDelay,
+  type StaffCreatedAppointment,
+  type StaffDelayPlan,
+} from "@/lib/dashboard/staff-schedule-actions";
 import type { AvailableSlot } from "@/lib/availability/compute-available-slots";
 import type { StaffCancelledAppointment } from "@/lib/dashboard/cancel-staff-appointment";
 import type { StaffRescheduledAppointment } from "@/lib/dashboard/reschedule-staff-appointment";
 import { ManageError, type ManageActionErrorCode } from "@/lib/booking/manage-errors";
 
-// Server Actions — the only place client code touches cancel_appointment/
-// reschedule_appointment for the dashboard. Each independently re-resolves
-// actorUserId from getAuthenticatedUser() server-side; never accepts it as
-// a client-supplied argument (the dashboard layout/page already gated on
-// this user being staff, but a Server Action is a public endpoint in its
-// own right and must not trust its caller).
-
+// Server Actions — the only place client code touches privileged appointment
+// RPCs. Every action re-resolves actorUserId from Supabase Auth server-side;
+// it never accepts the authenticated actor id from the browser.
 type ActionErrorCode = ManageActionErrorCode | "UNAUTHENTICATED" | "VALIDATION_ERROR";
 
 async function requireActorUserId(): Promise<
@@ -37,6 +40,142 @@ async function requireActorUserId(): Promise<
     return { success: false, errorCode: "UNAUTHENTICATED" };
   }
   return { success: true, actorUserId: user.id };
+}
+
+function processOutboxAfterResponse(context: string) {
+  after(async () => {
+    try {
+      await processEmailOutbox(createServiceRoleClient(), createResendSender(), { limit: 20 });
+    } catch (error) {
+      console.error(`${context}: email outbox processing failed`, error);
+    }
+  });
+}
+
+const createStaffAppointmentInputSchema = z.object({
+  doctorId: z.uuid(),
+  clinicId: z.uuid(),
+  appointmentTypeId: z.uuid(),
+  startsAt: z.iso.datetime({ offset: true }),
+  patientName: z.string().trim().min(1).max(120),
+  patientPhone: z.string().trim().min(3).max(40),
+  patientEmail: z.string().trim().email().max(254).nullable(),
+  notes: z.string().trim().max(1000).nullable(),
+});
+
+export type CreateStaffAppointmentResult =
+  | { success: true; appointment: StaffCreatedAppointment }
+  | { success: false; errorCode: ActionErrorCode; message: string };
+
+export async function createStaffAppointmentAction(
+  input: unknown,
+): Promise<CreateStaffAppointmentResult> {
+  const parsed = createStaffAppointmentInputSchema.safeParse(input);
+  if (!parsed.success) {
+    return { success: false, errorCode: "VALIDATION_ERROR", message: "Invalid request." };
+  }
+
+  const actor = await requireActorUserId();
+  if (!actor.success) {
+    return { success: false, errorCode: actor.errorCode, message: "Not authenticated." };
+  }
+
+  try {
+    const appointment = await createStaffAppointment(createServiceRoleClient(), {
+      ...parsed.data,
+      actorUserId: actor.actorUserId,
+    });
+    processOutboxAfterResponse("createStaffAppointmentAction");
+    return { success: true, appointment };
+  } catch (error) {
+    if (error instanceof ManageError) {
+      return {
+        success: false,
+        errorCode: error.code as ActionErrorCode,
+        message: "Unable to create appointment.",
+      };
+    }
+    console.error("createStaffAppointmentAction: unexpected error", error);
+    return { success: false, errorCode: "UNKNOWN", message: "Unable to create appointment." };
+  }
+}
+
+const delayInputSchema = z.object({
+  appointmentId: z.uuid(),
+  delayMinutes: z.number().int().min(1).max(240),
+});
+
+export type PreviewStaffDelayResult =
+  | { success: true; plan: StaffDelayPlan }
+  | { success: false; errorCode: ActionErrorCode; message: string };
+
+export async function previewStaffAppointmentDelayAction(
+  input: unknown,
+): Promise<PreviewStaffDelayResult> {
+  const parsed = delayInputSchema.safeParse(input);
+  if (!parsed.success) {
+    return { success: false, errorCode: "VALIDATION_ERROR", message: "Invalid request." };
+  }
+
+  const actor = await requireActorUserId();
+  if (!actor.success) {
+    return { success: false, errorCode: actor.errorCode, message: "Not authenticated." };
+  }
+
+  try {
+    const plan = await previewStaffAppointmentDelay(createServiceRoleClient(), {
+      ...parsed.data,
+      actorUserId: actor.actorUserId,
+    });
+    return { success: true, plan };
+  } catch (error) {
+    if (error instanceof ManageError) {
+      return {
+        success: false,
+        errorCode: error.code as ActionErrorCode,
+        message: "Unable to preview delay.",
+      };
+    }
+    console.error("previewStaffAppointmentDelayAction: unexpected error", error);
+    return { success: false, errorCode: "UNKNOWN", message: "Unable to preview delay." };
+  }
+}
+
+export type ApplyStaffDelayResult =
+  | { success: true; plan: StaffDelayPlan }
+  | { success: false; errorCode: ActionErrorCode; message: string };
+
+export async function applyStaffAppointmentDelayAction(
+  input: unknown,
+): Promise<ApplyStaffDelayResult> {
+  const parsed = delayInputSchema.safeParse(input);
+  if (!parsed.success) {
+    return { success: false, errorCode: "VALIDATION_ERROR", message: "Invalid request." };
+  }
+
+  const actor = await requireActorUserId();
+  if (!actor.success) {
+    return { success: false, errorCode: actor.errorCode, message: "Not authenticated." };
+  }
+
+  try {
+    const plan = await applyStaffAppointmentDelay(createServiceRoleClient(), {
+      ...parsed.data,
+      actorUserId: actor.actorUserId,
+    });
+    processOutboxAfterResponse("applyStaffAppointmentDelayAction");
+    return { success: true, plan };
+  } catch (error) {
+    if (error instanceof ManageError) {
+      return {
+        success: false,
+        errorCode: error.code as ActionErrorCode,
+        message: "Unable to apply delay.",
+      };
+    }
+    console.error("applyStaffAppointmentDelayAction: unexpected error", error);
+    return { success: false, errorCode: "UNKNOWN", message: "Unable to apply delay." };
+  }
 }
 
 const cancelInputSchema = z.object({ appointmentId: z.uuid() });
@@ -63,20 +202,7 @@ export async function cancelAppointmentAction(input: unknown): Promise<CancelApp
       appointmentId: parsed.data.appointmentId,
       actorUserId: actor.actorUserId,
     });
-    after(async () => {
-      try {
-        await processEmailOutbox(
-          createServiceRoleClient(),
-          createResendSender(),
-          { limit: 20 },
-        );
-      } catch (error) {
-        console.error(
-          "cancelAppointmentAction: email outbox processing failed",
-           error,
-        );
-      }
-    });
+    processOutboxAfterResponse("cancelAppointmentAction");
     return { success: true, appointment };
   } catch (error) {
     if (error instanceof ManageError) {
@@ -141,7 +267,8 @@ const getRescheduleSlotsInputSchema = z.object({
 });
 
 export type GetStaffRescheduleSlotsResult =
-  { success: true; slots: AvailableSlot[] } | { success: false; message: string };
+  | { success: true; slots: AvailableSlot[] }
+  | { success: false; message: string };
 
 export async function getStaffRescheduleSlotsAction(
   input: unknown,
@@ -200,20 +327,7 @@ export async function rescheduleAppointmentAction(
       actorUserId: actor.actorUserId,
       newStartsAt: parsed.data.newStartsAt,
     });
-    after(async () => {
-  try {
-    await processEmailOutbox(
-      createServiceRoleClient(),
-      createResendSender(),
-      { limit: 20 },
-    );
-  } catch (error) {
-    console.error(
-      "rescheduleAppointmentAction: email outbox processing failed",
-      error,
-    );
-  }
-});
+    processOutboxAfterResponse("rescheduleAppointmentAction");
     return {
       success: true,
       appointment: result.appointment,

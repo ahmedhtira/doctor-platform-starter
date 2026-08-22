@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect } from "react";
 import { useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { CalendarDays, CalendarRange, Clock3 } from "lucide-react";
@@ -15,15 +16,6 @@ const NAV_ITEMS = [
   { key: "availability", path: "/dashboard/availability", icon: Clock3 },
 ] as const;
 
-/**
- * Nav links + doctor switcher live in one client component because both
- * need the same `doctorId` search param. Every nav link is built with
- * buildDashboardHref(path, {doctorId}) so switching sections never drops
- * the selected doctor (a secretary managing multiple doctors must not be
- * silently bounced back to their first doctor on navigation). The switcher
- * itself preserves whatever *other* params are already on the current page
- * (e.g. Calendar's `week`) — it only overwrites `doctorId`.
- */
 export function DashboardNav({
   doctors,
   selectedDoctorId,
@@ -36,6 +28,16 @@ export function DashboardNav({
   const router = useRouter();
   const searchParams = useSearchParams();
   const doctorId = searchParams.get("doctorId") ?? selectedDoctorId;
+
+  // The dashboard is only three primary screens. Warm all three RSC routes
+  // as soon as the shell mounts so moving between Today / Calendar /
+  // Availability usually uses prefetched data instead of waiting for a
+  // navigation-time round trip. Re-run only when the selected doctor changes.
+  useEffect(() => {
+    for (const item of NAV_ITEMS) {
+      router.prefetch(buildDashboardHref(item.path, { doctorId }));
+    }
+  }, [doctorId, router]);
 
   return (
     <nav className="flex flex-col gap-3 text-sm">

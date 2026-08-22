@@ -5,6 +5,7 @@ import { requireDoctorContext } from "@/lib/dashboard/auth-context";
 import { fetchDashboardAppointments } from "@/lib/dashboard/fetch-dashboard-appointments";
 import { createClient } from "@/lib/supabase/server";
 import { AppointmentList } from "@/components/dashboard/appointment-list";
+import { ManualAppointmentForm } from "@/components/dashboard/manual-appointment-form";
 
 export const dynamic = "force-dynamic";
 
@@ -19,22 +20,48 @@ export default async function DashboardTodayPage({
   const { doctorId: doctorIdParam } = await searchParams;
   const { selectedDoctor } = await requireDoctorContext(doctorIdParam);
 
-  // "Today" in the doctor's own display timezone (doctors.timezone) — a
-  // doctor with clinics in multiple timezones still has one "today" as far
-  // as their own dashboard is concerned; per-appointment display still
-  // uses each appointment's own clinic timezone (see appointment-list.tsx).
-  // Non-null: DateTime.now() is always a valid DateTime, so .toISO() can't
-  // return null here (same reasoning as book-appointment.ts).
   const now = DateTime.now().setZone(selectedDoctor.timezone);
   const rangeStart = now.startOf("day").toUTC().toISO()!;
   const rangeEnd = now.plus({ days: 1 }).startOf("day").toUTC().toISO()!;
 
   const supabase = await createClient();
-  const appointments = await fetchDashboardAppointments(supabase, {
-    doctorId: selectedDoctor.id,
-    rangeStart,
-    rangeEnd,
-  });
+  const [appointments, clinicsResult, appointmentTypesResult] = await Promise.all([
+    fetchDashboardAppointments(supabase, {
+      doctorId: selectedDoctor.id,
+      rangeStart,
+      rangeEnd,
+    }),
+    supabase
+      .from("clinics")
+      .select("id, name, timezone")
+      .eq("doctor_id", selectedDoctor.id)
+      .order("created_at", { ascending: true }),
+    supabase
+      .from("appointment_types")
+      .select("id, name, duration_minutes")
+      .eq("doctor_id", selectedDoctor.id)
+      .order("created_at", { ascending: true }),
+  ]);
+
+  if (clinicsResult.error) {
+    throw new Error(`Failed to load clinics for manual booking: ${clinicsResult.error.message}`);
+  }
+  if (appointmentTypesResult.error) {
+    throw new Error(
+      `Failed to load appointment types for manual booking: ${appointmentTypesResult.error.message}`,
+    );
+  }
+
+  const manualClinics = clinicsResult.data.map((clinic) => ({
+    id: clinic.id,
+    name: clinic.name,
+    timezone: clinic.timezone,
+  }));
+  const manualAppointmentTypes = appointmentTypesResult.data.map((type) => ({
+    id: type.id,
+    name: type.name,
+    durationMinutes: type.duration_minutes,
+  }));
 
   const t = await getTranslations("dashboard.today");
   const intlLocale = locale === "ar" ? "ar-TN-u-nu-latn" : "fr-TN";
@@ -77,12 +104,20 @@ export default async function DashboardTodayPage({
 
   return (
     <div className="max-w-6xl">
-      <div>
-        <p className="text-accent text-xs font-semibold tracking-[0.14em] uppercase">
-          {selectedDoctor.fullName}
-        </p>
-        <h1 className="font-heading mt-1 text-3xl font-medium">{t("title")}</h1>
-        <p className="text-muted-foreground mt-1 capitalize">{formattedDate}</p>
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <p className="text-accent text-xs font-semibold tracking-[0.14em] uppercase">
+            {selectedDoctor.fullName}
+          </p>
+          <h1 className="font-heading mt-1 text-3xl font-medium">{t("title")}</h1>
+          <p className="text-muted-foreground mt-1 capitalize">{formattedDate}</p>
+        </div>
+        <ManualAppointmentForm
+          doctorId={selectedDoctor.id}
+          clinics={manualClinics}
+          appointmentTypes={manualAppointmentTypes}
+          defaultDate={now.toISODate()!}
+        />
       </div>
 
       <dl className="mt-6 grid grid-cols-2 gap-3 lg:grid-cols-4">
@@ -128,7 +163,7 @@ export default async function DashboardTodayPage({
             {appointments.length}
           </span>
         </div>
-        <AppointmentList appointments={appointments} locale={locale} />
+        <AppointmentList appointments={appointments} locale={locale} allowDelay />
       </section>
     </div>
   );

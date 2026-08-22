@@ -22,22 +22,18 @@ function formatDate(iso: string, timezone: string, locale: string): string {
   }).format(new Date(iso));
 }
 
-/**
- * Shared between Today and Calendar. `showDate` controls whether each row
- * repeats its full date (Today: false, single day already implied by the
- * page) or just the time (Calendar: rows are already grouped under a
- * per-day heading by the caller).
- */
 export async function AppointmentList({
   appointments,
   locale,
   showDate = false,
   variant = "list",
+  allowDelay = false,
 }: {
   appointments: DashboardAppointment[];
   locale: string;
   showDate?: boolean;
   variant?: "list" | "cards";
+  allowDelay?: boolean;
 }) {
   const t = await getTranslations("dashboard.appointmentList");
 
@@ -98,7 +94,7 @@ export async function AppointmentList({
           </div>
 
           {appointment.status === "confirmed" ? (
-            <AppointmentActions appointment={appointment} locale={locale} />
+            <AppointmentActions appointment={appointment} locale={locale} allowDelay={allowDelay} />
           ) : null}
         </li>
       ))}
