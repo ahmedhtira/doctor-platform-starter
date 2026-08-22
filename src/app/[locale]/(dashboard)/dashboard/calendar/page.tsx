@@ -190,7 +190,12 @@ export default async function DashboardCalendarPage({
                   </span>
                 </div>
                 <div className="mt-3">
-                  <AppointmentList appointments={dayAppointments} locale={locale} variant="cards" />
+                  <AppointmentList
+                    appointments={dayAppointments}
+                    locale={locale}
+                    appointmentTypes={manualAppointmentTypes}
+                    variant="cards"
+                  />
                 </div>
               </section>
             );

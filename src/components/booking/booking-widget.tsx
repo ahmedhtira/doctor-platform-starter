@@ -16,15 +16,12 @@ import {
 } from "@/app/[locale]/(public)/doctors/[slug]/actions";
 import type { AvailableSlot } from "@/lib/availability/compute-available-slots";
 import type { BookingInput } from "@/lib/booking/booking-schema";
+import { isoDateInTimeZone } from "@/lib/datetime/local-date";
 import { cn } from "@/lib/utils";
 
 type Clinic = { id: string; name: string; address: string; timezone: string };
 type AppointmentType = { id: string; name: string; durationMinutes: number };
 type SuccessResult = Extract<SubmitBookingResult, { success: true }>;
-
-function todayIsoDate(): string {
-  return new Date().toISOString().slice(0, 10);
-}
 
 export function BookingWidget({
   doctorId,
@@ -43,7 +40,9 @@ export function BookingWidget({
 
   const [clinicId, setClinicId] = useState(clinics[0]?.id ?? "");
   const [appointmentTypeId, setAppointmentTypeId] = useState(appointmentTypes[0]?.id ?? "");
-  const [date, setDate] = useState(todayIsoDate());
+  const [date, setDate] = useState(() =>
+    isoDateInTimeZone(clinics[0]?.timezone ?? "Africa/Tunis"),
+  );
   const [slots, setSlots] = useState<AvailableSlot[]>([]);
   const [slotsLoading, startSlotsTransition] = useTransition();
   const [rawSelectedSlotStart, setRawSelectedSlotStart] = useState<string | null>(null);
@@ -92,6 +91,18 @@ export function BookingWidget({
   useEffect(() => {
     refreshSlots();
   }, [refreshSlots]);
+
+  function handleClinicChange(nextClinicId: string) {
+    const nextClinic = clinics.find((clinic) => clinic.id === nextClinicId);
+    setClinicId(nextClinicId);
+    setRawSelectedSlotStart(null);
+    if (nextClinic) {
+      const nextLocalToday = isoDateInTimeZone(nextClinic.timezone);
+      if (date < nextLocalToday) {
+        setDate(nextLocalToday);
+      }
+    }
+  }
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
@@ -215,7 +226,7 @@ export function BookingWidget({
             <select
               id="booking-clinic"
               value={clinicId}
-              onChange={(event) => setClinicId(event.target.value)}
+              onChange={(event) => handleClinicChange(event.target.value)}
               className="border-input focus-visible:border-ring focus-visible:ring-ring/50 mt-1.5 h-9 w-full rounded-lg border bg-transparent px-2.5 text-sm shadow-xs transition-all outline-none focus-visible:ring-3"
             >
               {clinics.map((clinic) => (
@@ -245,7 +256,7 @@ export function BookingWidget({
           <SlotPicker
             date={date}
             onDateChange={setDate}
-            minDate={todayIsoDate()}
+            minDate={isoDateInTimeZone(selectedClinic.timezone)}
             slots={slots}
             selectedSlotStart={selectedSlotStart}
             onSelectSlot={setRawSelectedSlotStart}

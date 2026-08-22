@@ -163,7 +163,12 @@ export default async function DashboardTodayPage({
             {appointments.length}
           </span>
         </div>
-        <AppointmentList appointments={appointments} locale={locale} allowDelay />
+        <AppointmentList
+          appointments={appointments}
+          locale={locale}
+          appointmentTypes={manualAppointmentTypes}
+          allowDelay
+        />
       </section>
     </div>
   );

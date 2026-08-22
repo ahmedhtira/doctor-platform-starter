@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState, useTransition } from "react";
+import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -14,13 +14,11 @@ import {
 } from "@/app/[locale]/(public)/manage/actions";
 import type { AvailableSlot } from "@/lib/availability/compute-available-slots";
 import type { ManagedAppointmentView as ManagedAppointmentData } from "@/lib/booking/get-managed-appointment";
+import { isoDateInTimeZone } from "@/lib/datetime/local-date";
 
 type Mode = "view" | "confirmingCancel" | "rescheduling" | "rescheduled";
 
 function formatDateTime(iso: string, timezone: string, locale: string): string {
-  // dateStyle/timeStyle can't be combined with explicit component options
-  // (hour12) in the same formatter — same reasoning as
-  // booking-confirmation.tsx's formatDateTime.
   const intlLocale = locale === "ar" ? "ar-TN-u-nu-latn" : "fr-TN";
   const date = new Date(iso);
   const datePart = new Intl.DateTimeFormat(intlLocale, {
@@ -34,10 +32,6 @@ function formatDateTime(iso: string, timezone: string, locale: string): string {
     timeZone: timezone,
   }).format(date);
   return `${datePart} — ${timePart}`;
-}
-
-function todayIsoDate(): string {
-  return new Date().toISOString().slice(0, 10);
 }
 
 export function ManagedAppointmentView({
@@ -54,11 +48,10 @@ export function ManagedAppointmentView({
   const [actionPending, startActionTransition] = useTransition();
   const [actionError, setActionError] = useState<string | null>(null);
 
-  const [date, setDate] = useState(todayIsoDate());
+  const [date, setDate] = useState(() => isoDateInTimeZone(appointment.clinicTimezone));
   const [slots, setSlots] = useState<AvailableSlot[]>([]);
   const [slotsLoading, startSlotsTransition] = useTransition();
   const [rawSelectedSlotStart, setRawSelectedSlotStart] = useState<string | null>(null);
-  // Same derived-not-imperatively-cleared pattern as booking-widget.tsx.
   const selectedSlotStart =
     rawSelectedSlotStart !== null && slots.some((slot) => slot.slotStart === rawSelectedSlotStart)
       ? rawSelectedSlotStart
@@ -69,15 +62,28 @@ export function ManagedAppointmentView({
     managementToken: string;
   } | null>(null);
 
-  // router.refresh() re-fetches the server-resolved `appointment` prop, but
-  // doesn't reset this component's own `mode` state, and the refreshed
-  // prop can lag a render behind the reschedule that just happened. Once a
-  // reschedule succeeds, the merged time below is what "view" mode shows —
-  // authoritative immediately, no flash of the pre-reschedule time while
-  // waiting on a refresh to land.
+  // Keep the just-rescheduled time authoritative immediately while the
+  // Server Component refresh catches up.
   const currentAppointment = rescheduled
     ? { ...appointment, startsAt: rescheduled.startsAt }
     : appointment;
+
+  const [nowMs, setNowMs] = useState(() => Date.now());
+  const appointmentStartMs = new Date(currentAppointment.startsAt).getTime();
+  const hasStarted = appointmentStartMs <= nowMs;
+  const canModify = currentAppointment.status === "confirmed" && !hasStarted;
+
+  // A management page can stay open across the appointment start time.
+  // Re-evaluate exactly at that boundary so mutation controls disappear
+  // without polling or requiring a manual refresh.
+  useEffect(() => {
+    if (!Number.isFinite(appointmentStartMs) || appointmentStartMs <= nowMs) return;
+    const timer = window.setTimeout(
+      () => setNowMs(Date.now()),
+      Math.max(0, appointmentStartMs - Date.now() + 100),
+    );
+    return () => window.clearTimeout(timer);
+  }, [appointmentStartMs, nowMs]);
 
   const refreshSlots = useCallback((forDate: string) => {
     startSlotsTransition(async () => {
@@ -93,6 +99,7 @@ export function ManagedAppointmentView({
       case "APPOINTMENT_NOT_FOUND":
         return t("errorAppointmentNotFound");
       case "NOT_MODIFIABLE":
+      case "APPOINTMENT_STARTED":
         return t("errorNotModifiable");
       case "SLOT_UNAVAILABLE":
         return t("errorSlotUnavailable");
@@ -104,6 +111,7 @@ export function ManagedAppointmentView({
   }
 
   function beginReschedule() {
+    if (!canModify) return;
     setActionError(null);
     setMode("rescheduling");
     setRawSelectedSlotStart(null);
@@ -129,9 +137,7 @@ export function ManagedAppointmentView({
   }
 
   function handleConfirmReschedule() {
-    if (!selectedSlotStart) {
-      return;
-    }
+    if (!selectedSlotStart) return;
     startActionTransition(async () => {
       const result = await rescheduleManagedAppointmentAction(selectedSlotStart);
       if (result.success) {
@@ -154,10 +160,6 @@ export function ManagedAppointmentView({
     });
   }
 
-  // Fragment (#token=...) is never sent to the server. window.location.origin
-  // is only available client-side, hence the guard for the (brief)
-  // server-render pass of this client component — same pattern as
-  // booking-confirmation.tsx.
   const managementLink = useMemo(() => {
     if (!rescheduled || typeof window === "undefined") {
       return "";
@@ -204,7 +206,7 @@ export function ManagedAppointmentView({
     );
   }
 
-  if (mode === "rescheduling") {
+  if (mode === "rescheduling" && canModify) {
     return (
       <Card>
         <CardHeader>
@@ -214,7 +216,7 @@ export function ManagedAppointmentView({
           <SlotPicker
             date={date}
             onDateChange={handleDateChange}
-            minDate={todayIsoDate()}
+            minDate={isoDateInTimeZone(appointment.clinicTimezone)}
             slots={slots}
             selectedSlotStart={selectedSlotStart}
             onSelectSlot={setRawSelectedSlotStart}
@@ -307,7 +309,7 @@ export function ManagedAppointmentView({
 
         {actionError ? <p className="text-destructive text-sm">{actionError}</p> : null}
 
-        {currentAppointment.status === "confirmed" ? (
+        {canModify ? (
           mode === "confirmingCancel" ? (
             <div className="space-y-3 border-t pt-4">
               <p>{t("cancelConfirmPrompt")}</p>

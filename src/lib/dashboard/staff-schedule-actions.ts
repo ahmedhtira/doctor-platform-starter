@@ -3,6 +3,7 @@ import type { Database } from "@/lib/supabase/database.types";
 import { ManageError, classifyManageActionError } from "@/lib/booking/manage-errors";
 
 export type StaffCreatedAppointment = Database["public"]["Tables"]["appointments"]["Row"];
+export type StaffUpdatedAppointment = Database["public"]["Tables"]["appointments"]["Row"];
 
 export type StaffDelayAffectedAppointment = {
   appointment_id: string;
@@ -31,9 +32,9 @@ type UnsafeRpcResult<T> = Promise<{ data: T | null; error: RpcError | null }>;
 type UnsafeRpc = (functionName: string, args: Record<string, unknown>) => UnsafeRpcResult<unknown>;
 
 function rpcClient(supabase: SupabaseClient<Database>): UnsafeRpc {
-  // These RPCs are introduced by the matching launch migration before the
-  // generated Supabase TypeScript file is regenerated. Keep the escape
-  // hatch tightly scoped here rather than weakening types at every caller.
+  // These RPCs are introduced by launch migrations before the generated
+  // Supabase TypeScript file is regenerated. Keep the escape hatch tightly
+  // scoped here rather than weakening types at every caller.
   return supabase.rpc.bind(supabase) as unknown as UnsafeRpc;
 }
 
@@ -70,6 +71,35 @@ export async function createStaffAppointment(
   if (error) throwRpcError(error);
   if (!data) {
     throw new ManageError("UNKNOWN", "Manual appointment was not returned by the database.");
+  }
+  return data;
+}
+
+export async function updateStaffAppointmentDetails(
+  supabase: SupabaseClient<Database>,
+  input: {
+    appointmentId: string;
+    appointmentTypeId: string;
+    patientName: string;
+    patientPhone: string;
+    patientEmail: string | null;
+    notes: string | null;
+    actorUserId: string;
+  },
+): Promise<StaffUpdatedAppointment> {
+  const { data, error } = (await rpcClient(supabase)("update_staff_appointment_details", {
+    p_appointment_id: input.appointmentId,
+    p_appointment_type_id: input.appointmentTypeId,
+    p_patient_name: input.patientName,
+    p_patient_phone: input.patientPhone,
+    p_patient_email: input.patientEmail,
+    p_notes: input.notes,
+    p_actor_user_id: input.actorUserId,
+  })) as { data: StaffUpdatedAppointment | null; error: RpcError | null };
+
+  if (error) throwRpcError(error);
+  if (!data) {
+    throw new ManageError("UNKNOWN", "Updated appointment was not returned by the database.");
   }
   return data;
 }
