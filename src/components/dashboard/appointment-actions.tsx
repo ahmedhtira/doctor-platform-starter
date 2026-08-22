@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState, useTransition } from "react";
+import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
@@ -17,6 +17,7 @@ import type { AvailableSlot } from "@/lib/availability/compute-available-slots";
 import type { DashboardAppointment } from "@/lib/dashboard/fetch-dashboard-appointments";
 import type { AppointmentOutcome } from "@/lib/dashboard/record-staff-appointment-outcome";
 import type { StaffDelayPlan } from "@/lib/dashboard/staff-schedule-actions";
+import { isoDateInTimeZone } from "@/lib/datetime/local-date";
 
 type Mode =
   | "view"
@@ -67,21 +68,18 @@ const DELAY_COPY = {
     confirmAction: "تأكيد التأخير",
     successTitle: "تم تحديث الجدول",
     successMessage: (minutes: number, count: number) =>
-      `تم تطبيق تأخير قدره ${minutes} دقيقة وتحريك ${count} موعد.` ,
+      `تم تطبيق تأخير قدره ${minutes} دقيقة وتحريك ${count} موعد.`,
     patientsToContact: "مرضى يجب إبلاغهم",
     emailNotice: "سيتم إبلاغ المرضى المعنيين الذين لديهم بريد إلكتروني تلقائيًا.",
   },
 } as const;
-
-function todayIsoDate(): string {
-  return new Date().toISOString().slice(0, 10);
-}
 
 function errorMessageFor(t: ReturnType<typeof useTranslations>, code: string): string {
   switch (code) {
     case "APPOINTMENT_NOT_FOUND":
       return t("errorAppointmentNotFound");
     case "NOT_MODIFIABLE":
+    case "APPOINTMENT_STARTED":
       return t("errorNotModifiable");
     case "SLOT_UNAVAILABLE":
       return t("errorSlotUnavailable");
@@ -124,10 +122,27 @@ export function AppointmentActions({
   const [actionPending, startActionTransition] = useTransition();
   const [actionError, setActionError] = useState<string | null>(null);
   const [pendingOutcome, setPendingOutcome] = useState<AppointmentOutcome | null>(null);
-  const [hasEnded] = useState(() => new Date(appointment.endsAt).getTime() <= Date.now());
-  const [hasStarted] = useState(() => new Date(appointment.startsAt).getTime() <= Date.now());
+  const [nowMs, setNowMs] = useState(() => Date.now());
+  const startsAtMs = new Date(appointment.startsAt).getTime();
+  const endsAtMs = new Date(appointment.endsAt).getTime();
+  const hasStarted = startsAtMs <= nowMs;
+  const hasEnded = endsAtMs <= nowMs;
 
-  const [date, setDate] = useState(todayIsoDate());
+  // Update exactly when the appointment crosses its start/end boundary.
+  // This avoids a polling interval per appointment while keeping a Today
+  // screen left open at reception accurate without a manual refresh.
+  useEffect(() => {
+    const nextBoundary = [startsAtMs, endsAtMs]
+      .filter((value) => Number.isFinite(value) && value > nowMs)
+      .sort((a, b) => a - b)[0];
+    if (nextBoundary === undefined) return;
+
+    const delay = Math.max(0, nextBoundary - Date.now() + 100);
+    const timer = window.setTimeout(() => setNowMs(Date.now()), delay);
+    return () => window.clearTimeout(timer);
+  }, [startsAtMs, endsAtMs, nowMs]);
+
+  const [date, setDate] = useState(() => isoDateInTimeZone(appointment.clinicTimezone));
   const [slots, setSlots] = useState<AvailableSlot[]>([]);
   const [slotsLoading, startSlotsTransition] = useTransition();
   const [rawSelectedSlotStart, setRawSelectedSlotStart] = useState<string | null>(null);
@@ -467,7 +482,7 @@ export function AppointmentActions({
         <SlotPicker
           date={date}
           onDateChange={handleDateChange}
-          minDate={todayIsoDate()}
+          minDate={isoDateInTimeZone(appointment.clinicTimezone)}
           slots={slots}
           selectedSlotStart={selectedSlotStart}
           onSelectSlot={setRawSelectedSlotStart}
