@@ -1,6 +1,7 @@
 import { getTranslations } from "next-intl/server";
 import { Badge } from "@/components/ui/badge";
 import { AppointmentActions } from "./appointment-actions";
+import { ManualAppointmentEdit } from "./manual-appointment-edit";
 import type { DashboardAppointment } from "@/lib/dashboard/fetch-dashboard-appointments";
 import { cn } from "@/lib/utils";
 
@@ -116,12 +117,18 @@ export async function AppointmentList({
           </div>
 
           {appointment.status === "confirmed" ? (
-            <AppointmentActions
-              appointment={appointment}
-              locale={locale}
-              appointmentTypes={appointmentTypes}
-              allowDelay={allowDelay}
-            />
+            <>
+              {appointment.source === "manual" ? (
+                <div className="mt-3">
+                  <ManualAppointmentEdit
+                    appointment={appointment}
+                    appointmentTypes={appointmentTypes}
+                    locale={locale}
+                  />
+                </div>
+              ) : null}
+              <AppointmentActions appointment={appointment} locale={locale} allowDelay={allowDelay} />
+            </>
           ) : null}
         </li>
       ))}
