@@ -20,10 +20,11 @@ export function classifyRedeemError(postgresErrorCode: string | undefined): Mana
 export type ManageActionErrorCode =
   | "SESSION_INVALID" // 42501 — expired/unknown session, or scoped to a different appointment
   | "APPOINTMENT_NOT_FOUND" // P0002
-  | "NOT_MODIFIABLE" // 55000 — appointment is no longer 'confirmed'
-  | "SLOT_UNAVAILABLE" // 23P01 — reschedule target collides with another booking
-  | "SCHEDULE_CHANGED" // 55001 — reschedule target outside hours / too soon / blocked
+  | "NOT_MODIFIABLE" // 55000 — appointment is no longer 'confirmed' / staff details aren't editable
+  | "SLOT_UNAVAILABLE" // 23P01 — reschedule/update target collides with another booking
+  | "SCHEDULE_CHANGED" // 55001 — target outside hours / too soon / blocked
   | "NOT_YET_ENDED" // 55002 — record_appointment_outcome: appointment hasn't ended yet
+  | "APPOINTMENT_STARTED" // 55003 — patient/self-service or manual-details cutoff after start
   | "UNKNOWN";
 
 const CODE_BY_POSTGRES_ERRCODE: Record<string, ManageActionErrorCode> = {
@@ -33,6 +34,7 @@ const CODE_BY_POSTGRES_ERRCODE: Record<string, ManageActionErrorCode> = {
   "23P01": "SLOT_UNAVAILABLE",
   "55001": "SCHEDULE_CHANGED",
   "55002": "NOT_YET_ENDED",
+  "55003": "APPOINTMENT_STARTED",
 };
 
 export function classifyManageActionError(
