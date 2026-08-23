@@ -83,15 +83,20 @@ export default async function DashboardCalendarPage({
 
   const days = Array.from({ length: 7 }, (_, index) => weekStart.plus({ days: index }));
   const intlLocale = locale === "ar" ? "ar-TN-u-nu-latn" : "fr-TN";
-  const dayNameFormatter = new Intl.DateTimeFormat(intlLocale, { weekday: "long" });
+  const dayNameFormatter = new Intl.DateTimeFormat(intlLocale, {
+    weekday: "long",
+    timeZone: selectedDoctor.timezone,
+  });
   const dayNumberFormatter = new Intl.DateTimeFormat(intlLocale, {
     day: "numeric",
     month: "short",
+    timeZone: selectedDoctor.timezone,
   });
   const rangeFormatter = new Intl.DateTimeFormat(intlLocale, {
     day: "numeric",
     month: "long",
     year: "numeric",
+    timeZone: selectedDoctor.timezone,
   });
 
   const t = await getTranslations("dashboard.calendar");
