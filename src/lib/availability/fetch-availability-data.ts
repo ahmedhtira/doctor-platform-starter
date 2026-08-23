@@ -13,6 +13,13 @@ export type FetchAvailableSlotsParams = {
   localDate: string;
   /** ISO 8601 instant. */
   now: string;
+  /**
+   * Public booking should only expose published doctors. Existing
+   * appointment-management sessions may still need schedule access after a
+   * doctor is unpublished, so those callers can opt out while suspended or
+   * deleted doctors remain blocked.
+   */
+  requirePublished?: boolean;
 };
 
 export async function fetchAvailableSlots(
@@ -25,11 +32,14 @@ export async function fetchAvailableSlots(
     appointmentTypeId,
     localDate,
     now,
+    requirePublished = true,
   } = params;
 
   // This function uses a service-role client and therefore bypasses RLS.
-  // Verify the doctor's public lifecycle BEFORE reading private schedule
-  // data or returning any availability.
+  // Verify the doctor's lifecycle BEFORE reading private schedule data or
+  // returning any availability. Public callers additionally require the
+  // doctor to be published; authenticated patient-management callers can
+  // explicitly allow an unpublished but still-active doctor.
   const doctorResult = await supabase
     .from("doctors")
     .select(
@@ -48,7 +58,7 @@ export async function fetchAvailableSlots(
 
   if (
     !doctor ||
-    !doctor.is_published ||
+    (requirePublished && !doctor.is_published) ||
     doctor.suspended_at !== null ||
     doctor.deleted_at !== null
   ) {
