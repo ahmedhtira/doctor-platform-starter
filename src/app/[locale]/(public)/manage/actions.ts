@@ -267,6 +267,7 @@ export async function getManageSlotsAction(localDate: unknown): Promise<GetManag
       appointmentTypeId: view.appointmentTypeId,
       localDate: parsed.data.localDate,
       now: new Date().toISOString(),
+      requirePublished: false,
     });
     return { success: true, slots };
   } catch (error) {
