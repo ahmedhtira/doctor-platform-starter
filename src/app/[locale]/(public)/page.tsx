@@ -183,6 +183,13 @@ export default async function HomePage({
             ))}
           </ul>
 
+          <Link
+            href="/sos"
+            className="mt-7 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-rose-200 bg-rose-50 px-5 py-4 text-rose-950"
+          >
+            <span className="font-semibold">{t("sos.homeTitle")}</span>
+            <span className="text-sm underline underline-offset-4">{t("sos.homeAction")}</span>
+          </Link>
           <div className="mt-9">
             <DoctorSearchFilters
               specialtyOptions={specialtyOptions}

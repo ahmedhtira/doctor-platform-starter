@@ -149,7 +149,9 @@ export function BookingWidget({
       return;
     }
 
-    setSubmitError(t("errorUnknown"));
+    setSubmitError(
+      t(result.errorCode === "PAYMENT_REQUIRED" ? "errorPaymentRequired" : "errorUnknown"),
+    );
   }
 
   if (confirmation && selectedClinic) {

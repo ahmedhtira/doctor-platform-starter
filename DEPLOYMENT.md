@@ -318,3 +318,22 @@ Arabic pass), using a real inbox, not a mocked sender:
    and that the deployed domain shows `Strict-Transport-Security`
    (Vercel-provided, not application code — confirms §5's assumption
    held).
+# SOS and prepayment configuration rollout (draft)
+
+Apply `20261103092417_doctor_sos_and_payment_settings.sql` to a staging database
+before deploying the corresponding application code. The application selects
+the new columns, so deploying code before the migration will fail. Keep both
+new flags off for existing doctors initially; that is the migration default.
+
+Before production, verify the draft PR's quality, database and browser checks:
+create/edit SOS doctors, confirm hidden/suspended doctors are absent, check
+French/Arabic and phone links, verify recipient details are inaccessible to
+anon and doctor accounts, and test unpaid online-booking rejection alongside
+normal and manual bookings. No hosted migration has been applied by this PR.
+
+The payment recipient fields are configuration only. No checkout, automatic
+confirmation or refunds are connected. Enabling prepayment currently **blocks
+new online bookings** for that doctor and displays practice contact information.
+Do not enable it expecting money to be collected. Payment activation requires a
+verified provider account and its supported multi-doctor receiving arrangement,
+followed by the payment lifecycle implementation described in `PROJECT_SPEC.md`.

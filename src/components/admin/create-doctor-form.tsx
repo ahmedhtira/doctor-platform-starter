@@ -9,6 +9,9 @@ import {
 import { useTranslations } from "next-intl";
 import { useRouter } from "next/navigation";
 
+import { DoctorServiceSettingsFields } from "./doctor-service-settings-fields";
+import { defaultDoctorServiceSettings, doctorServiceSettingsSchema } from "@/lib/admin/doctor-service-settings";
+
 import { createDoctorAction } from "@/app/[locale]/(admin)/admin/actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -56,6 +59,7 @@ export function CreateDoctorForm({
 }) {
   const t = useTranslations("admin");
   const router = useRouter();
+  const [services, setServices] = useState(defaultDoctorServiceSettings);
 
   // Doctor
   const [email, setEmail] = useState("");
@@ -199,9 +203,14 @@ export function CreateDoctorForm({
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError(null);
+    if (!doctorServiceSettingsSchema.safeParse(services).success) {
+      setError(t("errorServiceSettings"));
+      return;
+    }
 
     startTransition(async () => {
       const payload = {
+        services,
         email,
         fullName,
         specialtyId,
@@ -559,6 +568,8 @@ export function CreateDoctorForm({
           </div>
         </div>
       </section>
+
+      <DoctorServiceSettingsFields value={services} onChange={setServices} />
 
       {/* Schedule */}
       <section className="rounded-xl border p-5 sm:p-6">

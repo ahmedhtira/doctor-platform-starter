@@ -1,9 +1,11 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/lib/supabase/database.types";
 import { AdminError } from "./admin-errors";
+import { serviceSettingsPayload, type DoctorServiceSettings } from "./doctor-service-settings";
 
 export type UpdateDoctorInput = {
   doctorId: string;
+  services?: DoctorServiceSettings;
   fullName: string;
   specialtyId: string;
   slug: string;
@@ -19,7 +21,7 @@ export type UpdateDoctorInput = {
 export type UpdatedDoctor = Database["public"]["Tables"]["doctors"]["Row"];
 
 /**
- * Plain service-role update — no RLS applies (doctors_update_own was
+ * Atomic service-role RPC update — no RLS applies (doctors_update_own was
  * dropped in M10 precisely so only this admin-gated path can write these
  * fields; see the migration's own comment). Does not touch clinic/
  * appointment-type/working-hours data — that stays owned by the doctor's
@@ -30,9 +32,9 @@ export async function updateDoctor(
   supabase: SupabaseClient<Database>,
   input: UpdateDoctorInput,
 ): Promise<UpdatedDoctor> {
-  const { data, error } = await supabase
-    .from("doctors")
-    .update({
+  const { data, error } = await supabase.rpc("update_doctor_with_services", {
+    p_doctor_id: input.doctorId,
+    p_profile: {
       full_name: input.fullName,
       specialty_id: input.specialtyId,
       slug: input.slug,
@@ -43,12 +45,12 @@ export async function updateDoctor(
       phone: input.phone ?? null,
       page_variant: input.pageVariant,
       custom_template_key: input.customTemplateKey ?? null,
-    })
-    .eq("id", input.doctorId)
-    .select()
-    .single();
+    },
+    ...(input.services ? { p_services: serviceSettingsPayload(input.services) } : {}),
+  });
 
   if (error) {
+    if (error.code === "P0002") throw new AdminError("NOT_FOUND", "Doctor not found.");
     if (error.code === "23505") {
       throw new AdminError("SLUG_TAKEN", "This URL slug is already in use.");
     }
