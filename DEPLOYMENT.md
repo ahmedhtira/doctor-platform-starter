@@ -318,7 +318,8 @@ Arabic pass), using a real inbox, not a mocked sender:
    and that the deployed domain shows `Strict-Transport-Security`
    (Vercel-provided, not application code — confirms §5's assumption
    held).
-# SOS and prepayment configuration rollout (draft)
+
+## SOS and prepayment configuration rollout (draft)
 
 Apply `20261103092417_doctor_sos_and_payment_settings.sql` to a staging database
 before deploying the corresponding application code. The application selects
