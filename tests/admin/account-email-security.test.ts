@@ -55,15 +55,21 @@ describe("Account email security properties (M10)", () => {
     userIds.push(result.authUserId);
 
     const actionLink = extractLink(sender.calls[0].text);
-    expect(actionLink).toContain("/auth/v1/");
+    const inviteUrl = new URL(actionLink);
+    expect(`${inviteUrl.origin}${inviteUrl.pathname}`).toBe(input.redirectTo);
+    expect(inviteUrl.searchParams.get("type")).toBe("invite");
+    const tokenHash = inviteUrl.searchParams.get("token_hash");
+    expect(tokenHash).toMatch(/^[a-f0-9]{64}$/);
 
     const { data: doctorRow } = await admin.from("doctors").select("*").eq("id", result.doctor.id).single();
     expect(JSON.stringify(doctorRow)).not.toContain(actionLink);
+    expect(JSON.stringify(doctorRow)).not.toContain(tokenHash!);
 
     const { data: auditRows } = await admin.from("audit_log").select("*").eq("entity_id", result.doctor.id);
     expect(auditRows!.length).toBeGreaterThan(0);
     for (const row of auditRows!) {
       expect(JSON.stringify(row)).not.toContain(actionLink);
+      expect(JSON.stringify(row)).not.toContain(tokenHash!);
       expect(JSON.stringify(row)).not.toContain("token");
     }
 
