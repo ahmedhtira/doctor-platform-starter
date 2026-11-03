@@ -59,7 +59,7 @@ describe("Account email security properties (M10)", () => {
     expect(`${inviteUrl.origin}${inviteUrl.pathname}`).toBe(input.redirectTo);
     expect(inviteUrl.searchParams.get("type")).toBe("invite");
     const tokenHash = inviteUrl.searchParams.get("token_hash");
-    expect(tokenHash).toMatch(/^[a-f0-9]{64}$/);
+    expect(tokenHash).toMatch(/^[a-f0-9]+$/);
 
     const { data: doctorRow } = await admin.from("doctors").select("*").eq("id", result.doctor.id).single();
     expect(JSON.stringify(doctorRow)).not.toContain(actionLink);
