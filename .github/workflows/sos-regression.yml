@@ -7,6 +7,8 @@ on:
       - "messages/**"
       - "supabase/**"
       - "tests/**"
+      - "package.json"
+      - "package-lock.json"
       - ".github/workflows/sos-regression.yml"
 
 permissions:
@@ -25,6 +27,8 @@ jobs:
       - name: Match the verified npm lockfile reader
         run: npm install --global npm@11.9.0
       - run: npm ci --no-audit --no-fund
+      - name: Check production dependencies for high-severity advisories
+        run: npm audit --omit=dev --audit-level=high
       - name: Start isolated Supabase and apply migrations
         run: npx supabase start -x studio,postgres-meta,imgproxy,realtime,edge-runtime,logflare,vector,supavisor
       - name: Configure local-only test environment
@@ -52,6 +56,12 @@ jobs:
         run: npm run test:booking
       - name: Account creation and administration regressions
         run: npm run test:admin
+      - name: Availability, dashboard and email regressions
+        run: |
+          npm run test:availability
+          npm run test:availability:consistency
+          npm run test:dashboard
+          npm run test:email
       - name: Install browser
         run: npx playwright install --with-deps chromium
       - name: Production build and SOS browser checks
