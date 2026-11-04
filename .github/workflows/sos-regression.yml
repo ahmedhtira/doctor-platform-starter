@@ -47,7 +47,8 @@ jobs:
           const env = { TEST_SUPABASE_URL: url, TEST_SUPABASE_ANON_KEY: anon,
             TEST_SUPABASE_SERVICE_ROLE_KEY: service, NEXT_PUBLIC_SUPABASE_URL: url,
             NEXT_PUBLIC_SUPABASE_ANON_KEY: anon, SUPABASE_SERVICE_ROLE_KEY: service,
-            APP_URL: 'http://localhost:3000' };
+            APP_URL: 'http://localhost:3000',
+            EMAIL_TOKEN_DERIVATION_KEY: require('node:crypto').randomBytes(32).toString('hex') };
           fs.appendFileSync(process.env.GITHUB_ENV, Object.entries(env).map(([k,v]) => `${k}=${v}`).join('\n') + '\n');
           NODE
       - name: Database permissions, atomicity, booking guard and overlap regressions
