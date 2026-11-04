@@ -881,6 +881,57 @@ invalid, unregistered, or missing key silently falls back to
 `StandardDoctorPage`, so a data-entry mistake degrades gracefully instead
 of crashing or 404ing.
 
+## SOS directory and prepayment configuration (draft, checkout not connected)
+
+The platform admin can configure these fields at doctor creation and later
+through the existing edit form. Both features default off for existing doctors.
+
+- `doctors.sos_enabled`, `sos_phone`, `sos_area`: public information for a
+  24-hour contact service. Enabling it requires a valid dedicated phone number.
+  It does not generate overnight appointment slots or change working hours.
+- `/fr/sos` and `/ar/sos`: public RLS-bound directory, filtered to published,
+  non-suspended, non-deleted SOS doctors, with clinic-city filter and telephone
+  links. SOS access never depends on prepayment. Both profile templates use the
+  shared service notice. The homepage, navigation and sitemap link to SOS.
+- `doctors.payment_required`, `payment_mode` (`deposit` or `full`),
+  `payment_amount_millimes`, `payment_terms`: public booking terms. Money is an
+  integer number of millimes (1 TND = 1000 millimes), parsed without rounding.
+  Payment requirements need a positive amount and cancellation/refund terms.
+- `doctor_payment_accounts`: recipient name, intended provider name and account
+  identifier only. RLS is enabled with no anon/authenticated grants or policies;
+  only the platform-admin server flow reads/writes it. No API keys, passwords,
+  card data or account identifiers are exposed through public doctor queries.
+- `update_doctor_with_services`: service-role-only RPC, called after the existing
+  immutable-user-ID admin check. Saves the explicitly allowlisted profile fields,
+  SOS/payment terms and private recipient atomically. An invalid recipient rolls
+  back the whole edit. Provisioning calls it before sending the invitation, so
+  its existing compensating rollback also removes the new configuration.
+
+**This is configuration, not a working payment integration.** No provider has
+been provisioned, and saving a recipient does not connect an account. When
+`payment_required=true`, the public profile explains that online booking is
+unavailable and offers practice contact; its booking form is hidden. The
+`private.guard_online_booking_payment` BEFORE INSERT trigger rejects online
+appointments with SQLSTATE `P0402`, including direct inserts and both existing
+booking RPCs. The guard locks the doctor row to serialize with configuration
+edits. Manual staff bookings remain available. Existing appointments and their
+management links retain their previous behaviour. No existing payment is
+created, charged, refunded or modified by these settings.
+
+Before enabling paid online checkout, the next change must provide a verified
+provider integration and supported per-doctor account onboarding, atomic slot
+holds included in overlap prevention, payment attempt records with immutable
+price/currency/recipient/terms snapshots, server-side payment verification,
+idempotent notification handling, hold expiry/reconciliation, late-payment
+handling and refund tracking. Confirmation emails and management tokens must
+only be issued after payment succeeds and the slot is secured. The current
+guard must be replaced with verified-payment enforcement, never simply removed.
+
+Regression coverage is in `tests/unit/doctor-service-settings.test.ts`,
+`tests/db/sos-and-payment-settings.test.ts`, and `tests/e2e/sos.spec.ts`.
+`.github/workflows/sos-regression.yml` runs a disposable local Supabase stack
+and browser checks without accessing hosted databases or sending real emails.
+
 ## Local-only guardrail
 
 Nothing in M1–M10 touches a hosted Supabase project. Local migrations

@@ -5,6 +5,7 @@ import { cleanupUsers } from "../db/fixtures";
 import { buildProvisionInput, createFakeSender, unique } from "./fixtures";
 import { provisionDoctor } from "@/lib/admin/provision-doctor";
 import type { Database } from "@/lib/supabase/database.types";
+import { defaultDoctorServiceSettings } from "@/lib/admin/doctor-service-settings";
 
 // Exercises the M10 provisioning saga end to end against real Postgres +
 // local Supabase Auth. See PROJECT_SPEC.md's M10 section: no privileged
@@ -23,6 +24,36 @@ describe("provisionDoctor (M10)", () => {
 
   afterAll(async () => {
     await cleanupUsers(admin, userIds);
+  });
+
+  it("persists SOS and private payment settings during account creation", async () => {
+    const sender = createFakeSender();
+    const input = await buildProvisionInput(admin, {
+      services: {
+        ...defaultDoctorServiceSettings,
+        sosEnabled: true,
+        sosPhone: "+216 70 123 456",
+        paymentRequired: true,
+        paymentAmount: "20.125",
+        paymentTerms: "Cancellation before 24 hours.",
+        recipientName: "Private recipient",
+        providerName: "Test provider",
+        accountReference: "private-reference",
+      },
+    });
+    const result = await provisionDoctor(admin, sender.sender, input);
+    userIds.push(result.authUserId);
+    expect(result.doctor).toMatchObject({
+      sos_enabled: true,
+      payment_required: true,
+      payment_amount_millimes: 20125,
+    });
+    const account = await admin.from("doctor_payment_accounts").select("*")
+      .eq("doctor_id", result.doctor.id).single();
+    expect(account.error).toBeNull();
+    expect(account.data?.account_reference).toBe("private-reference");
+    expect(sender.calls).toHaveLength(1);
+    expect(JSON.stringify(sender.calls)).not.toContain("private-reference");
   });
 
   it("creates the doctor, clinic, appointment type, working hours, and audit row, and sends the invite email immediately", async () => {

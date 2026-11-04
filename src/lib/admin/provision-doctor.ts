@@ -4,6 +4,7 @@ import type { Database } from "@/lib/supabase/database.types";
 import type { EmailSender } from "@/lib/email/send-email";
 import { sendAccountEmail } from "@/lib/email/send-account-email";
 import { AdminError } from "./admin-errors";
+import { serviceSettingsPayload, type DoctorServiceSettings } from "./doctor-service-settings";
 
 export type ProvisionDoctorPhoto = {
   body: ArrayBuffer;
@@ -12,6 +13,7 @@ export type ProvisionDoctorPhoto = {
 };
 export type ProvisionDoctorInput = {
   adminActorUserId: string;
+  services?: DoctorServiceSettings;
   email: string;
   fullName: string;
   specialtyId: string;
@@ -141,6 +143,21 @@ export async function provisionDoctor(
         throw new AdminError("SLUG_TAKEN", "This URL slug is already in use.");
       }
       throw new AdminError("UNKNOWN", doctorError.message);
+    }
+    if (input.services) {
+      const { data: configured, error: servicesError } = await supabase.rpc(
+        "update_doctor_with_services",
+        {
+          p_doctor_id: doctor.id,
+          p_services: serviceSettingsPayload(input.services),
+        },
+      );
+      if (servicesError || !configured)
+        throw new AdminError(
+          "UNKNOWN",
+          servicesError?.message ?? "Failed to save doctor settings.",
+        );
+      Object.assign(doctor, configured);
     }
     if (input.photo) {
       const photoPath =

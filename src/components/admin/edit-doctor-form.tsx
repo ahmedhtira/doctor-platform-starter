@@ -3,6 +3,11 @@
 import { useState, useTransition, type FormEvent } from "react";
 import { useTranslations } from "next-intl";
 import { useRouter } from "next/navigation";
+import { DoctorServiceSettingsFields } from "./doctor-service-settings-fields";
+import {
+  doctorServiceSettingsSchema,
+  type DoctorServiceSettings,
+} from "@/lib/admin/doctor-service-settings";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -32,22 +37,27 @@ function errorMessageFor(t: ReturnType<typeof useTranslations>, code: string): s
  */
 export function EditDoctorForm({
   doctor,
+  services: initialServices,
   specialties,
   locale,
 }: {
   doctor: DoctorRow;
+  services: DoctorServiceSettings;
   specialties: Specialty[];
   locale: string;
 }) {
   const t = useTranslations("admin");
   const router = useRouter();
+  const [services, setServices] = useState(initialServices);
 
   const [fullName, setFullName] = useState(doctor.full_name);
   const [specialtyId, setSpecialtyId] = useState(doctor.specialty_id);
   const [slug, setSlug] = useState(doctor.slug);
   const [defaultLocale, setDefaultLocale] = useState(doctor.default_locale);
   const [timezone, setTimezone] = useState(doctor.timezone);
-  const [minBookingNoticeMinutes, setMinBookingNoticeMinutes] = useState(doctor.min_booking_notice_minutes);
+  const [minBookingNoticeMinutes, setMinBookingNoticeMinutes] = useState(
+    doctor.min_booking_notice_minutes,
+  );
   const [bio, setBio] = useState(doctor.bio ?? "");
   const [phone, setPhone] = useState(doctor.phone ?? "");
   const [pageVariant, setPageVariant] = useState<"standard" | "custom">(
@@ -61,9 +71,14 @@ export function EditDoctorForm({
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError(null);
+    if (!doctorServiceSettingsSchema.safeParse(services).success) {
+      setError(t("errorServiceSettings"));
+      return;
+    }
     startTransition(async () => {
       const result = await updateDoctorAction({
         doctorId: doctor.id,
+        services,
         fullName,
         specialtyId,
         slug,
@@ -89,7 +104,12 @@ export function EditDoctorForm({
     <form className="flex flex-col gap-4" onSubmit={handleSubmit}>
       <div className="flex flex-col gap-2">
         <Label htmlFor="fullName">{t("fullNameLabel")}</Label>
-        <Input id="fullName" required value={fullName} onChange={(e) => setFullName(e.target.value)} />
+        <Input
+          id="fullName"
+          required
+          value={fullName}
+          onChange={(e) => setFullName(e.target.value)}
+        />
       </div>
       <div className="flex flex-col gap-2">
         <Label htmlFor="specialty">{t("specialtyLabel")}</Label>
@@ -136,7 +156,12 @@ export function EditDoctorForm({
       </div>
       <div className="flex flex-col gap-2">
         <Label htmlFor="timezone">{t("timezoneLabel")}</Label>
-        <Input id="timezone" required value={timezone} onChange={(e) => setTimezone(e.target.value)} />
+        <Input
+          id="timezone"
+          required
+          value={timezone}
+          onChange={(e) => setTimezone(e.target.value)}
+        />
       </div>
       <div className="flex flex-col gap-2">
         <Label htmlFor="minBookingNoticeMinutes">{t("minBookingNoticeLabel")}</Label>
@@ -180,6 +205,8 @@ export function EditDoctorForm({
           <p className="text-muted-foreground text-xs">{t("customTemplateKeyHint")}</p>
         </div>
       ) : null}
+
+      <DoctorServiceSettingsFields value={services} onChange={setServices} />
 
       {error ? <p className="text-destructive text-sm">{error}</p> : null}
       <Button type="submit" disabled={pending}>

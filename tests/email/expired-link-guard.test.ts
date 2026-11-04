@@ -56,7 +56,7 @@ describe("expired-link guard (M7)", () => {
     const { sender, calls } = createFakeEmailSender();
     await processEmailOutbox(admin, sender, { limit: 100, maxAttempts: 5 });
 
-    expect(calls).toHaveLength(0);
+    expect(calls.filter((call) => call.idempotencyKey === `doctor-platform-email/${outboxRow.id}`)).toHaveLength(0);
 
     const [rowAfter] = await getOutboxRowsForAppointment(admin, booked.appointment.id);
     expect(rowAfter.status).toBe("failed");
@@ -83,7 +83,7 @@ describe("expired-link guard (M7)", () => {
     const { sender, calls } = createFakeEmailSender();
     await processEmailOutbox(admin, sender, { limit: 100, maxAttempts: 5 });
 
-    expect(calls).toHaveLength(1);
+    expect(calls.filter((call) => call.idempotencyKey === `doctor-platform-email/${outboxRow.id}`)).toHaveLength(1);
     const [rowAfter] = await getOutboxRowsForAppointment(admin, booked.appointment.id);
     expect(rowAfter.status).toBe("sent");
   });

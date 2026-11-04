@@ -55,9 +55,17 @@ export async function deleteDoctor(
   const now = new Date().toISOString();
   const { error: updateError } = await supabase
     .from("doctors")
-    .update({ suspended_at: now, deleted_at: now, is_published: false, bio: null, phone: null })
+    .update({
+      suspended_at: now, deleted_at: now, is_published: false, bio: null, phone: null,
+      sos_enabled: false, sos_phone: null, sos_area: null,
+      payment_required: false, payment_amount_millimes: null, payment_terms: null,
+    })
     .eq("id", input.doctorId);
   if (updateError) throw new AdminError("UNKNOWN", updateError.message);
+
+  const { error: paymentAccountError } = await supabase
+    .from("doctor_payment_accounts").delete().eq("doctor_id", input.doctorId);
+  if (paymentAccountError) throw new AdminError("UNKNOWN", paymentAccountError.message);
 
   // Genuinely leaf tables -- nothing else references them, so removing
   // them is safe and matches "remove removable dependent records"

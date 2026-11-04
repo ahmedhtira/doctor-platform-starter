@@ -26,7 +26,15 @@ export default function PublicLayout({ children }: { children: ReactNode }) {
               className="h-8 w-auto sm:h-10"
             />
           </Link>
-          <LocaleSwitcher />
+          <nav aria-label={t("nav.patientNavigation")} className="flex items-center gap-3 sm:gap-5">
+            <Link
+              href="/sos"
+              className="rounded-full bg-rose-100 px-3 py-2 text-sm font-semibold text-rose-900 transition-colors hover:bg-rose-200"
+            >
+              {t("nav.sos")}
+            </Link>
+            <LocaleSwitcher />
+          </nav>
         </div>
       </header>
       <main className="flex-1">{children}</main>

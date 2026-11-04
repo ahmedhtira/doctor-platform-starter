@@ -21,6 +21,7 @@ export const getDoctor = cache(async (slug: string) => {
     .select(
       `
       id, full_name, bio, phone, photo_path, slug, page_variant, custom_template_key,
+      sos_enabled, sos_phone, sos_area, payment_required, payment_mode, payment_amount_millimes, payment_terms,
       specialties ( name_fr, name_ar ),
       clinics ( id, name, address, timezone ),
       appointment_types ( id, name, duration_minutes ),
@@ -33,6 +34,7 @@ export const getDoctor = cache(async (slug: string) => {
     .eq("slug", slug)
     .eq("is_published", true)
     .is("suspended_at", null)
+    .is("deleted_at", null)
     .maybeSingle();
 
   if (error) {

@@ -1,0 +1,75 @@
+name: SOS and payment settings regression
+
+on:
+  pull_request:
+    paths:
+      - "src/**"
+      - "messages/**"
+      - "supabase/**"
+      - "tests/**"
+      - "package.json"
+      - "package-lock.json"
+      - ".github/workflows/sos-regression.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  local-supabase:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - name: Match the verified npm lockfile reader
+        run: npm install --global npm@11.9.0
+      - run: npm ci --no-audit --no-fund
+      - name: Check production dependencies for high-severity advisories
+        run: npm audit --omit=dev --audit-level=high
+      - name: Start isolated Supabase and apply migrations
+        run: npx supabase start -x studio,postgres-meta,imgproxy,realtime,edge-runtime,logflare,vector,supavisor
+      - name: Configure local-only test environment
+        run: |
+          npx supabase status -o json > /tmp/doctor-supabase-status.json
+          node <<'NODE'
+          const fs = require('node:fs');
+          const status = JSON.parse(fs.readFileSync('/tmp/doctor-supabase-status.json', 'utf8'));
+          const url = status.API_URL ?? status.api?.url;
+          const anon = status.ANON_KEY ?? status.auth?.anon_key;
+          const service = status.SERVICE_ROLE_KEY ?? status.auth?.service_role_key;
+          if (!url || !anon || !service || !/^http:\/\/(127\.0\.0\.1|localhost):/.test(url)) {
+            throw new Error('Expected an isolated local Supabase stack.');
+          }
+          console.log(`::add-mask::${service}`);
+          const env = { TEST_SUPABASE_URL: url, TEST_SUPABASE_ANON_KEY: anon,
+            TEST_SUPABASE_SERVICE_ROLE_KEY: service, NEXT_PUBLIC_SUPABASE_URL: url,
+            NEXT_PUBLIC_SUPABASE_ANON_KEY: anon, SUPABASE_SERVICE_ROLE_KEY: service,
+            APP_URL: 'http://localhost:3000',
+            EMAIL_TOKEN_DERIVATION_KEY: require('node:crypto').randomBytes(32).toString('hex') };
+          fs.appendFileSync(process.env.GITHUB_ENV, Object.entries(env).map(([k,v]) => `${k}=${v}`).join('\n') + '\n');
+          NODE
+      - name: Database permissions, atomicity, booking guard and overlap regressions
+        run: npm run test:db -- tests/db/sos-and-payment-settings.test.ts tests/db/appointment-overlap.test.ts tests/db/rls.test.ts
+      - name: Booking flow regressions
+        run: npm run test:booking
+      - name: Account creation and administration regressions
+        run: npm run test:admin
+      - name: Availability, dashboard and email regressions
+        run: |
+          npm run test:availability
+          npm run test:availability:consistency
+          npm run test:dashboard
+          # The email worker claims the whole queue; earlier suites leave
+          # unrelated outbox fixtures. Reset only this disposable local DB.
+          npx supabase db reset --local --yes
+          npm run test:email
+      - name: Install browser
+        run: npx playwright install --with-deps chromium
+      - name: Production build and SOS browser checks
+        run: npx playwright test tests/e2e/sos.spec.ts
+      - name: Stop isolated stack
+        if: always()
+        run: npx supabase stop --no-backup

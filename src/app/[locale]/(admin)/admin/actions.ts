@@ -1,6 +1,7 @@
 "use server";
 
 import { z } from "zod";
+import { doctorServiceSettingsSchema } from "@/lib/admin/doctor-service-settings";
 import { getLocale } from "next-intl/server";
 import { createServiceRoleClient } from "@/lib/supabase/service-role";
 import { createResendSender } from "@/lib/email/resend-sender";
@@ -138,6 +139,7 @@ const clinicInputSchema = z.object({
 const createDoctorInputSchema = z.object({
   email: z.email(),
   fullName: z.string().trim().min(1),
+  services: doctorServiceSettingsSchema.optional(),
   specialtyId: z.uuid(),
   slug: z
     .string()
@@ -215,6 +217,7 @@ export async function createDoctorAction(
       adminActorUserId: actor.actorUserId,
       email: parsed.data.email,
       fullName: parsed.data.fullName,
+      services: parsed.data.services,
       specialtyId: parsed.data.specialtyId,
       slug: parsed.data.slug,
       defaultLocale: parsed.data.defaultLocale,
@@ -257,6 +260,7 @@ export async function createDoctorAction(
 const updateDoctorInputSchema = z.object({
   doctorId: z.uuid(),
   fullName: z.string().trim().min(1),
+  services: doctorServiceSettingsSchema.optional(),
   specialtyId: z.uuid(),
   slug: z
     .string()
@@ -292,6 +296,7 @@ export async function updateDoctorAction(input: unknown): Promise<UpdateDoctorRe
     const doctor = await updateDoctor(supabase, {
       doctorId: parsed.data.doctorId,
       fullName: parsed.data.fullName,
+      services: parsed.data.services,
       specialtyId: parsed.data.specialtyId,
       slug: parsed.data.slug,
       defaultLocale: parsed.data.defaultLocale,

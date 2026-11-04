@@ -318,3 +318,40 @@ Arabic pass), using a real inbox, not a mocked sender:
    and that the deployed domain shows `Strict-Transport-Security`
    (Vercel-provided, not application code — confirms §5's assumption
    held).
+
+## SOS and prepayment configuration rollout
+
+Apply `20261104083732_doctor_sos_and_payment_settings.sql` to a staging database
+before deploying the corresponding application code. The application selects
+the new columns, so deploying code before the migration will fail. Keep both
+new flags off for existing doctors initially; that is the migration default.
+
+Before production, verify the draft PR's quality, database and browser checks:
+create/edit SOS doctors, confirm hidden/suspended doctors are absent, check
+French/Arabic and phone links, verify recipient details are inaccessible to
+anon and doctor accounts, and test unpaid online-booking rejection alongside
+normal and manual bookings. The migration was applied to the hosted project on
+2026-11-04 after isolated database tests. Its filename matches the hosted
+migration-history version to avoid duplicate application on later CLI deploys.
+
+The payment recipient fields are configuration only. No checkout, automatic
+confirmation or refunds are connected. Enabling prepayment currently **blocks
+new online bookings** for that doctor and displays practice contact information.
+Do not enable it expecting money to be collected. Payment activation requires a
+verified provider account and its supported multi-doctor receiving arrangement,
+followed by the payment lifecycle implementation described in `PROJECT_SPEC.md`.
+
+Release security review (2026-11-04): Next.js is pinned to 16.4.5 and Zod to
+4.6.6; patched transitive runtime dependencies are recorded in the lockfile.
+The production dependency audit has no moderate, high or critical findings.
+The remaining low-severity `deepmerge` advisory is inherited through React
+Email's HTML-to-text converter. Conversion uses fixed options, never
+user-controlled option objects; track the upstream fix without forced major
+downgrades. The shadcn generator is a development dependency.
+
+Existing hosted-database advisories remain: leaked-password protection is
+disabled, and some foreign keys/RLS expressions have performance suggestions.
+These are separate from the SOS migration. Review password protection at
+https://supabase.com/docs/guides/auth/password-security#password-strength-and-leaked-password-protection
+and query tuning at
+https://supabase.com/docs/guides/database/database-linter?lint=0003_auth_rls_initplan.

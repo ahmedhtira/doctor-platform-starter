@@ -10,13 +10,16 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     .from("doctors")
     .select("slug")
     .eq("is_published", true)
-    .is("suspended_at", null);
+    .is("suspended_at", null)
+    .is("deleted_at", null);
 
   if (error) {
     throw new Error(`Failed to generate sitemap: ${error.message}`);
   }
 
   const staticPages: MetadataRoute.Sitemap = [
+    { url: `${BASE_URL}/fr/sos`, changeFrequency: "daily", priority: 0.9 },
+    { url: `${BASE_URL}/ar/sos`, changeFrequency: "daily", priority: 0.9 },
     {
       url: `${BASE_URL}/fr`,
       changeFrequency: "daily",

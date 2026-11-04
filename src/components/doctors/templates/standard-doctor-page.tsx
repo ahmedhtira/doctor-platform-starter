@@ -1,7 +1,11 @@
 import { getTranslations } from "next-intl/server";
 import { ProfileHero } from "@/components/doctor-profile/profile-hero";
 import { ClinicInfoCard } from "@/components/doctor-profile/clinic-info-card";
-import { InfoListSection, type CredentialItem } from "@/components/doctor-profile/info-list-section";
+import {
+  InfoListSection,
+  type CredentialItem,
+} from "@/components/doctor-profile/info-list-section";
+import { DoctorServiceNotice } from "@/components/doctor-profile/doctor-service-notice";
 import { BookingWidget } from "@/components/booking/booking-widget";
 import type { DoctorTemplateProps } from "./types";
 
@@ -57,7 +61,10 @@ export async function StandardDoctorPage({ locale, doctor }: DoctorTemplateProps
 
       <div className="mx-auto grid max-w-5xl gap-10 px-4 py-12 sm:px-6 lg:grid-cols-[1fr_320px] lg:gap-14 lg:py-16">
         <div className="order-2 space-y-10 lg:order-1">
-          {doctor.clinics.length > 0 && doctor.appointment_types.length > 0 ? (
+          <DoctorServiceNotice doctor={doctor} locale={locale} />
+          {!doctor.payment_required &&
+          doctor.clinics.length > 0 &&
+          doctor.appointment_types.length > 0 ? (
             <section>
               <BookingWidget
                 doctorId={doctor.id}

@@ -11,9 +11,11 @@ export type BookingErrorCode =
   | "SLOT_UNAVAILABLE" // 23P01 exclusion_violation — another booking won the race
   | "SCHEDULE_CHANGED" // 55001 — outside working hours / too soon / blocked, as of right now
   | "INVALID_APPOINTMENT_TYPE" // 22023 — appointment type doesn't belong to this doctor
+  | "PAYMENT_REQUIRED" // P0402 — prepayment configured, checkout not connected
   | "UNKNOWN";
 
 const CODE_BY_POSTGRES_ERRCODE: Record<string, BookingErrorCode> = {
+  P0402: "PAYMENT_REQUIRED",
   "23P01": "SLOT_UNAVAILABLE",
   "55001": "SCHEDULE_CHANGED",
   "22023": "INVALID_APPOINTMENT_TYPE",

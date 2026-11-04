@@ -5,6 +5,7 @@ import { cleanupUsers, createDoctorFixture } from "../db/fixtures";
 import { bookAppointment } from "@/lib/booking/book-appointment";
 import { deleteDoctor } from "@/lib/admin/delete-doctor";
 import type { Database } from "@/lib/supabase/database.types";
+import { defaultDoctorServiceSettings, serviceSettingsPayload } from "@/lib/admin/doctor-service-settings";
 
 function createTypedServiceRoleClient(): SupabaseClient<Database> {
   return createClient<Database>(getTestSupabaseUrl(), getTestSupabaseServiceRoleKey(), {
@@ -60,12 +61,22 @@ describe("deleteDoctor (M10)", () => {
       patientEmail: "delete-doctor-patient@example.test",
     });
 
+    const configured = await admin.rpc("update_doctor_with_services", {
+      p_doctor_id: doctor.doctorId,
+      p_services: serviceSettingsPayload({
+        ...defaultDoctorServiceSettings,
+        sosEnabled: true, sosPhone: "+216 70 123 456", sosArea: "Tunis",
+        paymentRequired: true, paymentAmount: "20", paymentTerms: "Test terms",
+        accountReference: "private-reference",
+      }),
+    });
+    expect(configured.error).toBeNull();
     const result = await deleteDoctor(admin, { doctorId: doctor.doctorId });
     expect(result.mode).toBe("soft");
 
     const { data: doctorRow } = await admin
       .from("doctors")
-      .select("suspended_at, deleted_at, is_published, bio, phone, full_name, slug")
+      .select("suspended_at, deleted_at, is_published, bio, phone, full_name, slug, sos_enabled, sos_phone, sos_area, payment_required, payment_amount_millimes, payment_terms")
       .eq("id", doctor.doctorId)
       .single();
     expect(doctorRow!.suspended_at).not.toBeNull();
@@ -75,6 +86,14 @@ describe("deleteDoctor (M10)", () => {
     expect(doctorRow!.phone).toBeNull();
     expect(doctorRow!.full_name).toBe("Dr. Test");
     expect(doctorRow!.slug).not.toBeNull();
+    expect(doctorRow).toMatchObject({
+      sos_enabled: false, sos_phone: null, sos_area: null,
+      payment_required: false, payment_amount_millimes: null, payment_terms: null,
+    });
+    const remainingAccount = await admin.from("doctor_payment_accounts")
+      .select("doctor_id").eq("doctor_id", doctor.doctorId);
+    expect(remainingAccount.error).toBeNull();
+    expect(remainingAccount.data).toEqual([]);
 
     const { data: appointmentRow } = await admin
       .from("appointments")

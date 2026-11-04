@@ -556,8 +556,44 @@ export type Database = {
           },
         ]
       }
+      doctor_payment_accounts: {
+        Row: {
+          doctor_id: string;
+          recipient_name: string;
+          provider_name: string;
+          account_reference: string;
+        };
+        Insert: {
+          doctor_id: string;
+          recipient_name?: string;
+          provider_name?: string;
+          account_reference?: string;
+        };
+        Update: {
+          doctor_id?: string;
+          recipient_name?: string;
+          provider_name?: string;
+          account_reference?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "doctor_payment_accounts_doctor_id_fkey";
+            columns: ["doctor_id"];
+            isOneToOne: true;
+            referencedRelation: "doctors";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       doctors: {
         Row: {
+          sos_enabled: boolean
+          sos_phone: string | null
+          sos_area: string | null
+          payment_required: boolean
+          payment_mode: string
+          payment_amount_millimes: number | null
+          payment_terms: string | null
           bio: string | null
           created_at: string
           custom_template_key: string | null
@@ -577,6 +613,13 @@ export type Database = {
           photo_path: string | null
         }
         Insert: {
+          sos_enabled?: boolean
+          sos_phone?: string | null
+          sos_area?: string | null
+          payment_required?: boolean
+          payment_mode?: string
+          payment_amount_millimes?: number | null
+          payment_terms?: string | null
           bio?: string | null
           created_at?: string
           custom_template_key?: string | null
@@ -596,6 +639,13 @@ export type Database = {
           photo_path?: string | null
         }
         Update: {
+          sos_enabled?: boolean
+          sos_phone?: string | null
+          sos_area?: string | null
+          payment_required?: boolean
+          payment_mode?: string
+          payment_amount_millimes?: number | null
+          payment_terms?: string | null
           bio?: string | null
           created_at?: string
           custom_template_key?: string | null
@@ -842,6 +892,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      update_doctor_with_services: {
+        Args: { p_doctor_id: string; p_profile?: Json; p_services?: Json };
+        Returns: Database["public"]["Tables"]["doctors"]["Row"];
+      };
       book_appointment: {
         Args: {
           p_appointment_type_id: string
